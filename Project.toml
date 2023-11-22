@@ -3,8 +3,22 @@ uuid = "38527215-9240-4c91-a638-d4250620c9e2"
 authors = ["Christoph Ortner <christohortner@gmail.com> and contributors"]
 version = "0.0.1-dev"
 
+[deps]
+AtomsCalculators = "a3e0e189-c65a-42c1-833c-339540406eb1"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+NeighbourLists = "2fcf5ba9-9ed4-57cf-b73f-ff513e316b9c"
+ObjectPools = "658cac36-ff0f-48ad-967c-110375d98c9d"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
 [compat]
 julia = "1"
+AtomsCalculators = "0.0.1"
+ForwardDiff = "0.10"
+LinearAlgebra = "1.9" 
+NeighbourLists = "0.5.5"
+ObjectPools = "0.3.1"
+StaticArrays = "1.7.0"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
