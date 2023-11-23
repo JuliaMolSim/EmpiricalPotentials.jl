@@ -22,8 +22,9 @@
          # gamma="1.20" eps="2.1675" />
 
 
-using ForwardDiff
-using LinearAlgebra: dot
+using ForwardDiff, ObjectPools, StaticArrays
+
+using LinearAlgebra: dot, norm 
 
 export StillingerWeber
 
@@ -94,15 +95,15 @@ V3(r) = sqrt(ϵ * λ) * exp(γ / (r/σ - a))
 The `brittle` keyword can be used to switch to the parameters λ to 42.0, 
 which is appropriate to simulate brittle fracture. (need reference for this)
 """
-struct StillingerWeber{P1, P2, T} <: SitePotential
+struct StillingerWeber{P1, P2, T} # <: SitePotential
    V2::P1
    V3::P2
    rcut::T
    pool::TSafe{ArrayPool{FlexArrayCache}}
-   meta::Dict{Symbol, Any} 
+   meta::Dict{Symbol, T}
 end
 
-cutoff_radius(calc::StillingerWeber) = max(cutoff(calc.V2), cutoff(calc.V3))
+cutoff_radius(calc::StillingerWeber) = calc.rcut
 
 function StillingerWeber(; brittle = false,
                ϵ=2.1675, σ = 2.0951, A=7.049556277, B=0.6022245584,
@@ -113,7 +114,9 @@ function StillingerWeber(; brittle = false,
    V3 = r -> r >= rcut ? 0.0 : sqrt(ϵ * λ) * exp( γ / (r/σ - a) )
    meta = Dict(:ϵ => ϵ, :σ => σ, :A => A, :B => B, :p => p, :a => a,
                :λ => λ, :γ => γ, :brittle => brittle, :rcut => rcut)
-   return StillingerWeber(V2, V3, TSafe(ArrayPool(FlexArrayCache)), meta) 
+   return StillingerWeber(V2, V3, rcut, 
+                          TSafe(ArrayPool(FlexArrayCache)), 
+                          meta) 
 end
 
 
@@ -123,8 +126,8 @@ function eval_site(calc::StillingerWeber, Rs, Zs, z0)
    TF = eltype(eltype(Rs))
    Nr = length(Rs)
    Ei = zero(TF) 
-   S = acquire!(calc.pool, :S, Nr, SVector{3, TF})
-   V3 = acquire!(calc.pool, :V3, Nr, TF)
+   S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
+   V3 = acquire!(calc.pool, :V3, (Nr,), TF)
    rcut = cutoff_radius(calc)
 
    for j = 1:Nr
@@ -135,7 +138,7 @@ function eval_site(calc::StillingerWeber, Rs, Zs, z0)
    end
 
    for j1 = 1:(Nr-1), j2 = (j1+1):Nr
-      Ei += tmp.V3[j1] * tmp.V3[j2] * sw_bondangle(tmp.S[j1], tmp.S[j2])
+      Ei += V3[j1] * V3[j2] * sw_bondangle(S[j1], S[j2])
    end
 
    release!(S); release!(V3)
