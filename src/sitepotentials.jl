@@ -61,6 +61,8 @@ AtomsCalculators.promote_force_type(::Any, spp::SitePotential) = SVector{3, type
 `get_neighbours(nlist::PairList, at, i::Integer) -> Js, Rs, Zs, z0`
 """
 function get_neighbours(at, V, nlist, i)
+   # The next 3 lines are responsible for almost all execution time
+   # so making this faster leads to serious performance increase
    Js, Rs = NeighbourLists.neigs(nlist, i)
    Zs = [ get_id(at, V, j) for j in Js ]
    z0 = get_id(at, V, i) 
@@ -144,8 +146,18 @@ function AtomsCalculators.energy_forces!(f::AbstractVector, at, V::SitePotential
    return (; :energy => E * energy_unit(V), :force => f)
 end
 
-function AtomsCalculators.energy_forces(at, V::SitePotential; domain=1:length(at), executor=ThreadedEx(), ntasks=Threads.nthreads(), kwargs...)
-   nlist = PairList(at, cutoff_radius(V))
+function AtomsCalculators.energy_forces(
+   at, 
+   V::SitePotential; 
+   domain   = 1:length(at), 
+   executor = ThreadedEx(), 
+   ntasks   = Threads.nthreads(),
+   nlist    = nothing,
+   kwargs...
+)
+   if isnothing(nlist)
+      nlist = PairList(at, cutoff_radius(V))
+   end
    E_F = Folds.sum( collect(chunks(domain, ntasks)), executor; init=[zero(V), AtomsCalculators.zero_forces(at, V)] ) do (sub_domain, _)
       E = zero(V)
       f = AtomsCalculators.zero_forces(at, V)
@@ -175,8 +187,17 @@ function site_virial(V, dV, Rs)
 end
 
 
-AtomsCalculators.@generate_interface function AtomsCalculators.virial(at, V::SitePotential; domain=1:length(at), executor=ThreadedEx(), kwargs...) 
-   nlist = PairList(at, cutoff_radius(V))
+AtomsCalculators.@generate_interface function AtomsCalculators.virial(
+   at, 
+   V::SitePotential; 
+   domain   = 1:length(at), 
+   executor = ThreadedEx(),
+   nlist    = nothing,
+   kwargs...
+) 
+   if isnothing(nlist)
+      nlist = PairList(at, cutoff_radius(V))
+   end
    vir = Folds.sum( domain, executor; init=zero(SMatrix{3, 3, typeof(zero(V))}) ) do i 
       Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
       _, dV = eval_grad_site(V, Rs, Zs, z0)
@@ -188,8 +209,18 @@ AtomsCalculators.@generate_interface function AtomsCalculators.virial(at, V::Sit
 end
 
 
-function AtomsCalculators.energy_forces_virial(at, V::SitePotential; domain=1:length(at), executor=ThreadedEx(), ntasks=Threads.nthreads(), kwargs...)
-   nlist = PairList(at, cutoff_radius(V))
+function AtomsCalculators.energy_forces_virial(
+   at, 
+   V::SitePotential; 
+   domain   = 1:length(at), 
+   executor = ThreadedEx(),
+   ntasks   = Threads.nthreads(),
+   nlist    = nothing,
+   kwargs...
+)
+   if isnothing(nlist)
+      nlist = PairList(at, cutoff_radius(V))
+   end
    E_F_V = Folds.sum(
       collect(chunks(domain, ntasks)), 
       executor;
