@@ -1,36 +1,35 @@
 
-using EmpiricalPotentials, StaticArrays, Test 
-import JuLIP 
-
+using EmpiricalPotentials, StaticArrays, Test, JSON 
 using LinearAlgebra: dot, norm
-using EmpiricalPotentials: cutoff_radius
+using EmpiricalPotentials: cutoff_radius, StillingerWeber
 using JuLIP: AtomicNumber
 
 ##
 
-sw_julip = JuLIP.StillingerWeber()
+# generate the SW potential 
 sw = StillingerWeber()
 
-r0 = 2.35
-rcut = cutoff_radius(sw)
+# load test data 
+D = JSON.parsefile(joinpath(@__DIR__(), "data", "test_sw.json"))
+tests = D["tests"]
 
-function rand_pos() 
-   𝐫 = randn(SVector{3, Float64})
-   return (0.8*r0 + rand() * (1.2*rcut - 0.8*r0)) * 𝐫 / norm(𝐫)
+# the argument t should be a tests[i]
+function read_test(t::Dict) 
+   Rs = SVector{3, Float64}.(t["Rs"])
+   Zs = Int.(t["Zs"])
+   z0 = Int(t["z0"])
+   v = Float64(t["val"])
+   return Rs, Zs, z0, v
 end
 
-function rand_env() 
-   Rs = [ rand_pos() for _ = 1:rand(3:5) ]
-   Zs = [ AtomicNumber(:Si) for _ = 1:length(Rs) ]
-   z0 = AtomicNumber(:Si)
-   return Rs, Zs, z0
-end
+t = tests[1]
 
-
-for ntest = 1:30
+for ntest = 1:length(tests)
    local Rs, Zs, z0 
-   Rs, Zs, z0 = rand_env()
+   Rs, Zs, z0, v2 = read_test(tests[ntest])
    v1 = EmpiricalPotentials.eval_site(sw, Rs, Zs, z0)
-   v2 = JuLIP.evaluate(sw_julip, Rs, Zs, z0)
-   @test v1 ≈ v2 
+   @test v1 ≈ v2
 end
+
+## 
+# Test the gradients 
