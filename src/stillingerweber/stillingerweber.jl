@@ -179,16 +179,6 @@ function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
 end
 
 
-# function _ad_dV(V::StillingerWeber, R_dofs)
-#    R = vecs( reshape(R_dofs, 3, length(R_dofs) ÷ 3) )
-#    r = norm.(R)
-#    dV = zeros(eltype(R), length(R))
-#    tmpd = alloc_temp_d(V, length(R), eltype(R[1]))
-#    evaluate_d!(dV, tmpd, V, R)
-#    return mat(dV)[:]
-# end
-
-
 # function _ad_ddV!(hEs, V::StillingerWeber, R::AbstractVector{JVec{T}}) where {T}
 #    ddV = ForwardDiff.jacobian( Rdofs -> _ad_dV(V, Rdofs), mat(R)[:] )
 #    # convert into a block-format
@@ -239,34 +229,57 @@ end
 # end
 
 
+# ∇V  = V'(r) 𝐫̂ 
+# ∇²V = V''(r) 𝐫̂ ⊗ 𝐫̂ - (V'(r)/r) (I - 𝐫̂ ⊗ 𝐫̂)
 
-# function precon!(hEs, tmp, V::StillingerWeber, R::AbstractVector{JVec{T}}, innerstab=0.0
-#                  ) where {T}
-#    n = length(R)
-#    r = tmp.r
-#    V3 = tmp.V3
-#    S = tmp.S
+using LinearAlgebra: I, mul! 
 
-#    # two-body contributions
-#    for (i, R1) in enumerate(R)
-#       r[i] = norm(R1)
-#       V3[i] = V.V3(r[i])
-#       S[i] = R1 / r[i]
-#       hEs[i,i] += precon!(nothing, V.V2, r[i], R1)
-#    end
+function _precon_pair(V, r::T, 𝐫̂::SVector{3, T}) where {T} 
+   dVfun  = _r -> ForwardDiff.derivative(V,     _r)
+   ddVfun = _r -> ForwardDiff.derivative(dVfun, _r) 
+   dv = dVfun(r) 
+   ddv = ddVfun(r) 
+   P = 𝐫̂ * 𝐫̂'
+   Pperp = SMatrix{3,3,T}(I) - P 
+   return abs(ddv) * P + abs(dv/r) * Pperp
+end
 
-#    # three-body terms
-#    for i1 = 1:(n-1), i2 = (i1+1):n
-#       Θ = dot(S[i1], S[i2])
-#       dΘ1 = (T(1.0)/r[i1]) * S[i2] - (Θ/r[i1]) * S[i1]
-#       dΘ2 = (T(1.0)/r[i2]) * S[i1] - (Θ/r[i2]) * S[i2]
-#       # ψ = (Θ + 1/3)^2, ψ' = (Θ + 1/3), ψ'' = 2.0
-#       a = abs((V3[i1] * V3[i2] * T(2.0)))
-#       hEs[i1,i2] += a * dΘ1 * dΘ2'
-#       hEs[i1,i1] += a * dΘ1 * dΘ1'
-#       hEs[i2, i2] += a * dΘ2 * dΘ2'
-#       hEs[i2, i1] += a * dΘ2 * dΘ1'
-#    end
+function precon(calc::StillingerWeber, Rs::AbstractVector{SVector{3, TF}}, 
+                Zs, z0, innerstab=0.1) where {TF}
+   Nr = length(Rs)
+   r = acquire!(calc.pool, :r, (Nr,), TF)
+   S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
+   V3 = acquire!(calc.pool, :V3, (Nr,), TF)
 
-#    return hEs
-# end
+   I3x3 = SMatrix{3, 3, TF}(I)
+   Z3x3 = zero(SMatrix{3, 3, TF})
+   _pEs = acquire!(calc.pool, :pEs, (Nr, Nr), typeof(I3x3))
+   pEs = unwrap(_pEs)
+   for i = 1:Nr, j = 1:Nr 
+      pEs[i, j] = Z3x3 
+   end 
+
+   # two-body contributions
+   for (i, 𝐫) in enumerate(Rs)
+      r[i] = ri = norm(𝐫)
+      V3[i] = calc.V3(ri)
+      S[i] = 𝐫̂i = 𝐫 / ri
+      pEs[i,i] += ( (1 - innerstab) * _precon_pair(calc.V2, ri, 𝐫̂i) 
+                     + innerstab * I3x3) 
+   end
+
+   # three-body terms
+   for i1 = 1:(Nr-1), i2 = (i1+1):Nr
+      Θ = dot(S[i1], S[i2])
+      dΘ1 = (one(TF)/r[i1]) * S[i2] - (Θ/r[i1]) * S[i1]
+      dΘ2 = (one(TF)/r[i2]) * S[i1] - (Θ/r[i2]) * S[i2]
+      # ψ = (Θ + 1/3)^2, ψ' = 2 (Θ + 1/3), ψ'' = 2
+      a = (1 - innerstab) * abs(V3[i1] * V3[i2] * 2)
+      pEs[i1, i2] += a * dΘ1 * dΘ2'
+      pEs[i1, i1] += a * dΘ1 * dΘ1'
+      pEs[i2, i2] += a * dΘ2 * dΘ2'
+      pEs[i2, i1] += a * dΘ2 * dΘ1'
+   end
+
+   return _pEs
+end
