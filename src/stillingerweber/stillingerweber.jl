@@ -154,20 +154,20 @@ function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
    Nr = length(Rs)
    Ei = zero(TF)
    rcut = cutoff_radius(calc)
-   r = acquire!(calc.pool, :r, Nr, TF)
-   S = acquire!(calc.pool, :S, Nr, SVector{3, TF})
-   V3 = acquire!(calc.pool, :V3, Nr, TF)
-   gV3 = acquire!(calc.pool, :gV3, Nr, SVector{3, TF})
-   dEs = acquire!(calc.pool, :dEs, Nr, SVector{3, TF})
+   r = acquire!(calc.pool, :r, (Nr,), TF)
+   S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
+   V3 = acquire!(calc.pool, :V3, (Nr,), TF)
+   gV3 = acquire!(calc.pool, :gV3, (Nr,), SVector{3, TF})
+   dEs = acquire!(calc.pool, :dEs, (Nr,), SVector{3, TF})
 
-   for i = 1:length(R)  # shouldn't be i but j. TODO: fix this
+   for i = 1:Nr  # shouldn't be i but j. TODO: fix this
       r[i] = ri = norm(Rs[i])
       S[i] = 𝐫̂i = Rs[i] / ri
       V3[i] = calc.V3(ri)
-      gV3[i] = ForwardDiff.derivative(calc.V3, r) * 𝐫̂i
-      dEs[i] = 0.5 * ForwardDiff.derivative(calc.V2, r) * 𝐫̂i
+      gV3[i] = ForwardDiff.derivative(calc.V3, ri) * 𝐫̂i
+      dEs[i] = 0.5 * ForwardDiff.derivative(calc.V2, ri) * 𝐫̂i
    end
-   for i1 = 1:(length(R)-1), i2 = (i1+1):length(R)
+   for i1 = 1:(Nr-1), i2 = (i1+1):Nr
       a, b1, b2 = sw_bondangle_d(S[i1], S[i2], r[i1], r[i2])
       dEs[i1] += (V3[i1] * V3[i2]) * b1 + (V3[i2] * a) * gV3[i1]
       dEs[i2] += (V3[i1] * V3[i2]) * b2 + (V3[i1] * a) * gV3[i2]

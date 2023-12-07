@@ -1,6 +1,6 @@
 
-using EmpiricalPotentials, StaticArrays, Test, JSON 
-using LinearAlgebra: dot, norm
+using EmpiricalPotentials, StaticArrays, Test, JSON, ForwardDiff 
+using LinearAlgebra: dot, norm, I 
 using EmpiricalPotentials: cutoff_radius, StillingerWeber
 using JuLIP: AtomicNumber
 
@@ -22,14 +22,25 @@ function read_test(t::Dict)
    return Rs, Zs, z0, v
 end
 
-t = tests[1]
 
-for ntest = 1:length(tests)
+for t in tests
    local Rs, Zs, z0 
-   Rs, Zs, z0, v2 = read_test(tests[ntest])
+   Rs, Zs, z0, v2 = read_test(t)
    v1 = EmpiricalPotentials.eval_site(sw, Rs, Zs, z0)
    @test v1 ≈ v2
 end
 
 ## 
 # Test the gradients 
+# this is an ad hov test implementation that should ideally be replaced 
+# asap by a generic implementation that can be used for all potentials. 
+
+sw = StillingerWeber()
+for t in tests 
+   Rs, Zs, z0, _ = read_test(tests[1]) 
+   Us = randn(eltype(Rs), length(Rs))
+   F(t) = EmpiricalPotentials.eval_site(sw, Rs + t * Us, Zs, z0)
+   dF(t) = dot(EmpiricalPotentials.eval_grad_site(sw, Rs + t * Us, Zs, z0), Us)
+   @test dF(0.0) ≈ ForwardDiff.derivative(F, 0.0)
+end
+
