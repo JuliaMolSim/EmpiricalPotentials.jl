@@ -6,6 +6,7 @@ using Folds
 using NeighbourLists
 using ObjectPools: acquire!, release!
 using Unitful 
+using StaticArrays: SVector, SMatrix 
 
 
 """
@@ -22,10 +23,12 @@ function cutoff_radius end
 """
 If `V <: SitePotential` then it should implement the method
 ```julia 
-eval_site(V, Rs, Zs, z0)
+val = eval_site(V, Rs, Zs, z0)
 ```
-where `Rs::AbstractVector{<: SVector{3}}` and `Zs::AbstractVector` of atomic 
-numbers, while `z0` is a single `AtomicNumber`.
+where `Rs::AbstractVector{<: SVector{3}}` and `Zs::AbstractVector` of atom ids 
+(e.g. atomic numbers), while `z0` is a single atom id. 
+
+The output `val` should be a single number, namely the site energy.
 """
 function eval_site end
 
@@ -33,12 +36,51 @@ function eval_site end
 """
 If `V <: SitePotential` then it should implement the method
 ```julia 
-eval_grad_site(V, Rs, Zs, z0)
+dv = eval_grad_site(V, Rs, Zs, z0)
 ```
-where `Rs::AbstractVector{<: SVector{3}}` and `Zs::AbstractVector` of atomic 
-numbers, while `z0` is a single `AtomicNumber`.
+where `Rs::AbstractVector{<: SVector{3}}` and `Zs::AbstractVector` of 
+atom ids (e.g., atomic numbers), while `z0` is a single atom id. 
+
+The output `dv` should be an `AbstractVector` containing  
+`SVector{3,T}` blocks.
 """
 function eval_grad_site end 
+
+
+"""
+If `V <: SitePotential` then it can implement the method
+```julia 
+Pblock = precon(V, Rs, Zs, z0)
+```
+where `Rs::AbstractVector{<: SVector{3}}` and `Zs::AbstractVector` of 
+atom ids (e.g., atomic numbers), while `z0` is a single atom id. 
+The output `Pblock` should be an `AbstractMatrix` containing 
+`SMatrix{3,3,T}` blocks. 
+
+Unlike `eval_site` and `eval_grad_site`, this method is optional. It 
+can be used to speedup geometry optimization, sampling and related tasks. 
+"""
+function precon end 
+
+
+# This is an attempt at a general hessian implementation 
+# It does not work, because ForwardDiff seems to not play well 
+# with SVector. It is missing a number of methods. Strange. 
+function ad_hessian(V::SitePotential, Rs::AbstractVector{SVector{3, TF}}, 
+                    Zs, z0) where TF
+   Rsvec_to_Rs = _Rsvec -> reinterpret(SVector{3, TF}, _Rsvec)
+   Rsvec = reinterpret(TF, Rs)
+   dvfun = _Rsvec -> eval_grad_site(V, Rsvec_to_Rs(_Rsvec), Zs, z0)
+   H = ForwardDiff.jacobian(dvfun, vec(Rs))
+   nR = length(Rs)
+   Hblock = zeros(SMatrix{3, 3, TF}, nR)
+   for j1 = 1:nR, j2 = 1:nR 
+      J1 = 3 * (j1-1) .+ (1:3)
+      J2 = 3 * (j2-1) .+ (1:3)
+      Hblock[j1, j2] .= H[J1, J2]
+   end
+   return Hblock 
+end
 
 
 

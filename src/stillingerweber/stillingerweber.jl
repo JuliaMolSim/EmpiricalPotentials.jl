@@ -95,7 +95,7 @@ V3(r) = sqrt(ϵ * λ) * exp(γ / (r/σ - a))
 The `brittle` keyword can be used to switch to the parameters λ to 42.0, 
 which is appropriate to simulate brittle fracture. (need reference for this)
 """
-struct StillingerWeber{P1, P2, T} # <: SitePotential
+struct StillingerWeber{P1, P2, T} <: SitePotential
    V2::P1
    V3::P2
    rcut::T
@@ -179,18 +179,8 @@ function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
 end
 
 
-# function _ad_ddV!(hEs, V::StillingerWeber, R::AbstractVector{JVec{T}}) where {T}
-#    ddV = ForwardDiff.jacobian( Rdofs -> _ad_dV(V, Rdofs), mat(R)[:] )
-#    # convert into a block-format
-#    n = length(R)
-#    for i = 1:n, j = 1:n
-#       hEs[i, j] = ddV[ ((i-1)*3).+(1:3), ((j-1)*3).+(1:3) ]
-#    end
-#    return hEs
-# end
 
-# evaluate_dd!(hEs, tmp, V::StillingerWeber, R) = _ad_ddV!(hEs, V, R)
-
+# This code seems to have a bug and is therefore removed for now
 # function hess(V::StillingerWeber, r, R)
 #    n = length(r)
 #    hV = zeros(JMatF, n, n)

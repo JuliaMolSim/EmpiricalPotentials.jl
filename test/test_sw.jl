@@ -2,7 +2,6 @@
 using EmpiricalPotentials, StaticArrays, Test, JSON, ForwardDiff 
 using LinearAlgebra: dot, norm, I 
 using EmpiricalPotentials: cutoff_radius, StillingerWeber
-using JuLIP: AtomicNumber
 
 ##
 
