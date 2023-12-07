@@ -9,6 +9,9 @@ using Unitful
 using StaticArrays: SVector, SMatrix 
 
 
+export cutoff_radius
+export SitePotential
+
 """
 `SitePotential`:abstractsupertype for generic site potentials. Concrete subtypes 
 should overload the `cutoff_radius`, `eval_site` and `eval_grad_site` methods. 

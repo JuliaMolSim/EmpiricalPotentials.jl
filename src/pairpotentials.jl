@@ -5,6 +5,7 @@ using StaticArrays
 using Unitful
 
 
+export PairPotential
 export SimplePairPotential
 
 
