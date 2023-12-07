@@ -7,6 +7,7 @@ using Unitful
 
 export PairPotential
 export SimplePairPotential
+export LennardJones
 
 
 # NOTE: this could be taken a subtype of SitePotential, but not clear 
@@ -62,9 +63,37 @@ function eval_grad_site(spp::SimplePairPotential, Rs, Zs, z0)
         if Z == id
             r = norm(R)
             d_result = ForwardDiff.derivative!(d_result, spp.f, r)
-            e_tmp += DiffResults.value(d_result)
-            f[i] = ( DiffResults.derivative(d_result) / (2r) ) * R  # divide with two here to take off double count
+            te::Float64 = DiffResults.value(d_result)  # type instablity here
+            e_tmp += te
+            tmp::Float64 =  DiffResults.derivative(d_result)  # type instablity here
+            f[i] = ( tmp / (2r) ) * R  # divide with two here to take off double count
         end
     end
     return e_tmp/2, f
+end
+
+
+##
+
+
+function LennardJones(
+    emin::Unitful.Energy,
+    rmin::Unitful.Length,
+    id1, id2,
+    cutoff::Unitful.Length
+)
+    @assert emin < 0u"eV"
+    @assert rmin > 0u"pm"
+    @assert cutoff > rmin
+    ε = -ustrip(emin)
+    σ = ustrip(unit(cutoff), rmin) / 2^1//6
+    A = 4ε * σ^12
+    B = 4ε * σ^6
+
+    return SimplePairPotential(
+        r -> A/r^12 - B/r^6,
+        (id1, id2),
+        cutoff,
+        zero(emin)
+    )
 end
