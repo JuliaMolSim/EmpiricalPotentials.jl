@@ -221,7 +221,7 @@ end
 
 AtomsCalculators.forces(at, V::SitePotential; kwargs...) = AtomsCalculators.energy_forces(at, V; kwargs...)[:force]
 AtomsCalculators.forces!(f, at, V::SitePotential; kwargs...) = AtomsCalculators.energy_forces!(f, at, V; kwargs...)[:force]
-AtomsCalculators.calculate(::AtomsCalculators.Forces, at, V::SitePotential; kwargs...) = AtomsCalculators.forces(at, V; kwargs...)
+AtomsCalculators.calculate(::AtomsCalculators.Forces, at, V::SitePotential; kwargs...) = (; :forces => AtomsCalculators.forces(at, V; kwargs...) )
 
 function site_virial(V, dV, Rs) 
    if length(Rs) == 0
