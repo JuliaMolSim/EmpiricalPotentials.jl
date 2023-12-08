@@ -86,7 +86,7 @@ function LennardJones(
     @assert rmin > 0u"pm"
     @assert cutoff > rmin
     ε = -ustrip(emin)
-    σ = ustrip(unit(cutoff), rmin) / 2^1//6
+    σ = ustrip(unit(cutoff), rmin) / 2^(1//6)
     A = 4ε * σ^12
     B = 4ε * σ^6
 
