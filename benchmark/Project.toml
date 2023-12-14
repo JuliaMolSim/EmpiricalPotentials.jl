@@ -1,0 +1,8 @@
+[deps]
+AtomsBase = "a963bdd2-2df7-4f54-a1ee-49d51e6be12a"
+AtomsCalculators = "a3e0e189-c65a-42c1-833c-339540406eb1"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+ExtXYZ = "352459e4-ddd7-4360-8937-99dcb397b478"
+Folds = "41a02a25-b8f0-4f67-bc48-60067656b558"
+NeighbourLists = "2fcf5ba9-9ed4-57cf-b73f-ff513e316b9c"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
