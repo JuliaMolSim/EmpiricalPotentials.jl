@@ -287,3 +287,102 @@ function AtomsCalculators.energy_forces_virial(
    end
    return (; :energy => E_F_V[1], :force => E_F_V[2], :virial => E_F_V[3])
 end
+
+
+## Parameter estimation
+
+# ∂E\∂params
+function AtomsCalculators.potential_energy(
+   at, 
+   V::SitePotential,
+   params::AbstractArray; 
+   domain=1:length(at), 
+   executor=ThreadedEx(), 
+   nlist=nothing, 
+   kwargs...
+) 
+   if isnothing(nlist)
+      nlist = PairList(at, cutoff_radius(V))
+   end
+
+   E = Folds.sum( domain, executor ) do i
+      Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
+      e_i = eval_site(V, params, Rs, Zs, z0)
+      release!(Js); release!(Rs); release!(Zs)
+      e_i
+   end
+
+   return E * energy_unit(V)
+end
+
+# ∂F\∂params
+function AtomsCalculators.forces(
+   at, 
+   V::SitePotential,
+   params::AbstractArray; 
+   domain   = 1:length(at), 
+   executor = ThreadedEx(), 
+   ntasks   = Threads.nthreads(),
+   nlist    = nothing,
+   kwargs...
+)
+   if isnothing(nlist)
+      nlist = PairList(at, cutoff_radius(V))
+   end
+   F = Folds.sum( collect(chunks(domain, ntasks)), executor ) do (sub_domain, _)
+      f = Vector{Any}( undef, 3*length(domain) )
+      f = [ zeros( 3, length(params) ) for _ in domain ]
+      for i in sub_domain
+         Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
+         dv = eval_grad_site(V, V.parameters, Rs, Zs, z0)
+         f[Js] -= dv
+         f[i]  += sum(dv)
+         release!(Js); release!(Rs); release!(Zs); release!(dv)
+      end
+      f
+   end
+
+   return reduce(vcat, F) * force_unit(V)
+end
+
+# dV is now vector of matrices
+function site_virial(V, params, dV, Rs) 
+   if length(Rs) == 0
+      return zeros(9, length(params), typeof(zero(V)))
+   else
+      #return - sum( dv_i * 𝐫_i' for (dv_i, 𝐫_i) in zip(dV, Rs) ) * energy_unit(V)
+      #tmp = [ vec( -sum(dvᵢ -> dvᵢ * rᵢ',  eachcol(dv)) ) for (dv,rᵢ) in zip(dV, Rs) ]
+      #- sum( dv_i * 𝐫_i' for (dv_i, 𝐫_i) in zip(dV, Rs) )
+      vir = map( eachindex(params) ) do pᵢ
+         tmp = -sum( zip(eachcol(dV[pᵢ]), Rs) ) do (dvᵢ, rᵢ)
+            dvᵢ * rᵢ'
+         end
+         vec(tmp)
+      end
+      return reduce(hcat, vir) * energy_unit(V)
+   end
+end
+
+
+function AtomsCalculators.virial(
+   at, 
+   V::SitePotential,
+   params::AbstractArray; 
+   domain   = 1:length(at), 
+   executor = ThreadedEx(), 
+   ntasks   = Threads.nthreads(),
+   nlist    = nothing,
+   kwargs...
+)
+   if isnothing(nlist)
+      nlist = PairList(at, cutoff_radius(V))
+   end
+   vir = Folds.sum( domain, executor ) do i 
+      Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
+      _, dV = eval_grad_site(V, Rs, Zs, z0)
+      vir_i = site_virial(V, params, dV, Rs)
+      release!(Js); release!(Rs); release!(Zs); release!(dV)
+      vir_i
+   end
+   return vir
+end

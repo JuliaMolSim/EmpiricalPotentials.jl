@@ -6,6 +6,7 @@ using Unitful
 
 
 export PairPotential
+export ParametricPairPotential
 export SimplePairPotential
 export LennardJones
 
@@ -20,7 +21,10 @@ export LennardJones
 abstract type PairPotential <: SitePotential end
 
 
+cutoff_radius(pp::PairPotential) = pp.cutoff
+Base.zero(pp::PairPotential) = pp.zero_energy
 
+##
 
 struct SimplePairPotential{ID, TC, TE} <: PairPotential where {TC<:Unitful.LengthUnits, TE<:Unitful.EnergyUnits }
     f::Function
@@ -29,9 +33,6 @@ struct SimplePairPotential{ID, TC, TE} <: PairPotential where {TC<:Unitful.Lengt
     "zero used to define output type and unit"
     zero_energy::TE  
 end
-
-cutoff_radius(spp::SimplePairPotential) = spp.cutoff
-Base.zero(spp::SimplePairPotential) = spp.zero_energy
 
 
 function eval_site(spp::SimplePairPotential, Rs, Zs, z0)
@@ -72,6 +73,93 @@ function eval_grad_site(spp::SimplePairPotential, Rs, Zs, z0)
     return e_tmp/2, f
 end
 
+##
+
+struct ParametricPairPotential{ID, TP, TC, TE} <: PairPotential where {TP<:AbstractArray, TC<:Unitful.LengthUnits, TE<:Unitful.EnergyUnits }
+    f::Function
+    parameters::TP
+    atom_ids::NTuple{2,ID}
+    cutoff::TC
+    "zero used to define output type and unit"
+    zero_energy::TE  
+end
+
+
+function eval_site(ppp::ParametricPairPotential, Rs, Zs, z0)
+    if ! (z0 in ppp.atom_ids)
+        return ustrip(zero(ppp))
+    end
+    tmp = ustrip(zero(ppp))
+    id = z0 == ppp.atom_ids[1] ?  ppp.atom_ids[2] : ppp.atom_ids[1]
+    for (i, R) in zip(Zs, Rs)
+        if i == id
+            r = norm(R)
+            tmp += ppp.f(r, ppp.parameters)
+        end
+    end
+    return tmp/2 # divide by to to get correct double count
+end
+
+
+function eval_grad_site(ppp::ParametricPairPotential, Rs, Zs, z0)
+    @assert length(Rs) == length(Zs)
+    f = zeros(SVector{3, Float64}, length(Zs))
+    e_tmp = ustrip(ppp.zero_energy)
+    if ! (z0 in ppp.atom_ids)  # potential is not defined for this case
+        return e_tmp, f  # return zeros - this is not the optimal but will do for now
+    end
+    id = z0 == ppp.atom_ids[1] ?  ppp.atom_ids[2] : ppp.atom_ids[1]
+    d_result = DiffResults.DiffResult(e_tmp, e_tmp)
+    for (i, Z, R) in zip(1:length(Zs), Zs, Rs)
+        if Z == id
+            r = norm(R)
+            d_result = ForwardDiff.derivative!(d_result, x->ppp.f(x, ppp.parameters), r)
+            te::Float64 = DiffResults.value(d_result)  # type instablity here
+            e_tmp += te
+            tmp::Float64 =  DiffResults.derivative(d_result)  # type instablity here
+            f[i] = ( tmp / (2r) ) * R  # divide with two here to take off double count
+        end
+    end
+    return e_tmp/2, f
+end
+
+
+# Parameter estimation ∂f/∂params
+function eval_site(ppp::ParametricPairPotential, params::AbstractArray, Rs, Zs, z0)
+    tmp = zeros( (eltype ∘ ustrip ∘ zero)(ppp), length(params) )
+    if ! (z0 in ppp.atom_ids)
+        return tmp
+    end
+    id = z0 == ppp.atom_ids[1] ?  ppp.atom_ids[2] : ppp.atom_ids[1]
+    for (i, R) in zip(Zs, Rs)
+        if i == id
+            r = norm(R)
+            tmp += ForwardDiff.gradient( a -> ppp.f(r, a), params)
+        end
+    end
+    return tmp/2 # divide by to to get correct double count
+end
+
+
+function eval_grad_site(ppp::ParametricPairPotential, params::AbstractArray, Rs, Zs, z0)
+    @assert length(Rs) == length(Zs)
+    f = [ zeros(length(Rs[1]), length(params)) for _ in  1:length(Zs) ]
+    if ! (z0 in ppp.atom_ids)  # potential is not defined for this case
+        return f  # return zeros - this is not the optimal but will do for now
+    end
+    id = z0 == ppp.atom_ids[1] ?  ppp.atom_ids[2] : ppp.atom_ids[1]
+
+    for (i, Z, R) in zip(1:length(Zs), Zs, Rs)
+        if Z == id
+            r = norm(R)
+            hess = ForwardDiff.hessian( a -> ppp.f(a[1], a[2:end]), [r, params...] )
+            tmp = hess[:, 1]
+            f[i] = [ ( tmp / (2r) ) * Rᵢ for Rᵢ in R, tmp in @view hess[2:end, 1] ]
+        end
+    end
+    return f
+end
+
 
 ##
 
@@ -80,7 +168,8 @@ function LennardJones(
     emin::Unitful.Energy,
     rmin::Unitful.Length,
     id1, id2,
-    cutoff::Unitful.Length
+    cutoff::Unitful.Length;
+    parametric=false
 )
     @assert emin < 0u"eV"
     @assert rmin > 0u"pm"
@@ -90,10 +179,20 @@ function LennardJones(
     A = 4ε * σ^12
     B = 4ε * σ^6
 
-    return SimplePairPotential(
-        r -> A/r^12 - B/r^6,
-        (id1, id2),
-        cutoff,
-        zero(emin)
-    )
+    if parametric
+        return ParametricPairPotential(
+            (r,c) -> c[1]/r^12 - c[2]/r^6,
+            SVector(A, B),
+            (id1, id2),
+            cutoff,
+            zero(emin)
+        )
+    else
+        return SimplePairPotential(
+            r -> A/r^12 - B/r^6,
+            (id1, id2),
+            cutoff,
+            zero(emin)
+        )
+    end
 end
