@@ -330,7 +330,6 @@ function AtomsCalculators.forces(
       nlist = PairList(at, cutoff_radius(V))
    end
    F = Folds.sum( collect(chunks(domain, ntasks)), executor ) do (sub_domain, _)
-      f = Vector{Any}( undef, 3*length(domain) )
       f = [ zeros( 3, length(params) ) for _ in domain ]
       for i in sub_domain
          Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
