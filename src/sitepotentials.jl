@@ -349,14 +349,11 @@ function site_virial(V, params, dV, Rs)
    if length(Rs) == 0
       return zeros(9, length(params), typeof(zero(V)))
    else
-      #return - sum( dv_i * 𝐫_i' for (dv_i, 𝐫_i) in zip(dV, Rs) ) * energy_unit(V)
-      #tmp = [ vec( -sum(dvᵢ -> dvᵢ * rᵢ',  eachcol(dv)) ) for (dv,rᵢ) in zip(dV, Rs) ]
-      #- sum( dv_i * 𝐫_i' for (dv_i, 𝐫_i) in zip(dV, Rs) )
-      vir = map( eachindex(params) ) do pᵢ
-         tmp = -sum( zip(eachcol(dV[pᵢ]), Rs) ) do (dvᵢ, rᵢ)
+      vir = -sum( zip(dV, Rs) ) do (dvₘ, rᵢ)
+         tmp = map( eachcol(dvₘ) ) do dvᵢ
             dvᵢ * rᵢ'
          end
-         vec(tmp)
+         vec.(tmp)
       end
       return reduce(hcat, vir) * energy_unit(V)
    end
@@ -378,7 +375,7 @@ function AtomsCalculators.virial(
    end
    vir = Folds.sum( domain, executor ) do i 
       Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
-      _, dV = eval_grad_site(V, Rs, Zs, z0)
+      dV = eval_grad_site(V, params, Rs, Zs, z0)
       vir_i = site_virial(V, params, dV, Rs)
       release!(Js); release!(Rs); release!(Zs); release!(dV)
       vir_i

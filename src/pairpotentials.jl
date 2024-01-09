@@ -103,20 +103,21 @@ end
 
 function eval_grad_site(ppp::ParametricPairPotential, Rs, Zs, z0)
     @assert length(Rs) == length(Zs)
-    f = zeros(SVector{3, Float64}, length(Zs))
+    T = promote_type( (typeof ∘ ustrip ∘ zero)(ppp) , (eltype ∘ eltype)(Rs) )
+    f = zeros(SVector{3, T}, length(Zs))
     e_tmp = ustrip(ppp.zero_energy)
     if ! (z0 in ppp.atom_ids)  # potential is not defined for this case
         return e_tmp, f  # return zeros - this is not the optimal but will do for now
     end
     id = z0 == ppp.atom_ids[1] ?  ppp.atom_ids[2] : ppp.atom_ids[1]
-    d_result = DiffResults.DiffResult(e_tmp, e_tmp)
+    d_result = DiffResults.DiffResult(zero(T), zero(T))
     for (i, Z, R) in zip(1:length(Zs), Zs, Rs)
         if Z == id
             r = norm(R)
             d_result = ForwardDiff.derivative!(d_result, x->ppp.f(x, ppp.parameters), r)
-            te::Float64 = DiffResults.value(d_result)  # type instablity here
+            te::T= DiffResults.value(d_result)  # type instablity here
             e_tmp += te
-            tmp::Float64 =  DiffResults.derivative(d_result)  # type instablity here
+            tmp::T =  DiffResults.derivative(d_result)  # type instablity here
             f[i] = ( tmp / (2r) ) * R  # divide with two here to take off double count
         end
     end
@@ -126,7 +127,8 @@ end
 
 # Parameter estimation ∂f/∂params
 function eval_site(ppp::ParametricPairPotential, params::AbstractArray, Rs, Zs, z0)
-    tmp = zeros( (eltype ∘ ustrip ∘ zero)(ppp), length(params) )
+    T = promote_type( (typeof ∘ ustrip ∘ zero)(ppp) , (eltype ∘ eltype)(Rs) )
+    tmp = zeros( T, length(params) )
     if ! (z0 in ppp.atom_ids)
         return tmp
     end
@@ -143,7 +145,10 @@ end
 
 function eval_grad_site(ppp::ParametricPairPotential, params::AbstractArray, Rs, Zs, z0)
     @assert length(Rs) == length(Zs)
-    f = [ zeros(length(Rs[1]), length(params)) for _ in  1:length(Zs) ]
+    # Plan is to calculate ∂E/∂rᵢ∂pⱼ with Hessian calculation
+    # using [r, params...] as imput.
+    T = promote_type( (typeof ∘ ustrip ∘ zero)(ppp) , (eltype ∘ eltype)(Rs) )
+    f = fill( zeros(T, length(Rs[1]), length(params)), length(Zs) )
     if ! (z0 in ppp.atom_ids)  # potential is not defined for this case
         return f  # return zeros - this is not the optimal but will do for now
     end
@@ -153,7 +158,6 @@ function eval_grad_site(ppp::ParametricPairPotential, params::AbstractArray, Rs,
         if Z == id
             r = norm(R)
             hess = ForwardDiff.hessian( a -> ppp.f(a[1], a[2:end]), [r, params...] )
-            tmp = hess[:, 1]
             f[i] = [ ( tmp / (2r) ) * Rᵢ for Rᵢ in R, tmp in @view hess[2:end, 1] ]
         end
     end
