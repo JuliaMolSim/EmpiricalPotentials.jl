@@ -148,7 +148,8 @@ function eval_grad_site(ppp::ParametricPairPotential, params::AbstractArray, Rs,
     # Plan is to calculate ∂E/∂rᵢ∂pⱼ with Hessian calculation
     # using [r, params...] as imput.
     T = promote_type( (typeof ∘ ustrip ∘ zero)(ppp) , (eltype ∘ eltype)(Rs) )
-    f = fill( zeros(T, length(Rs[1]), length(params)), length(Zs) )
+    m = SMatrix{length(Rs[1]), length(params)}(zeros(T, length(Rs[1]), length(params)))
+    f = fill( m, length(Zs) )
     if ! (z0 in ppp.atom_ids)  # potential is not defined for this case
         return f  # return zeros - this is not the optimal but will do for now
     end

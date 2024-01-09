@@ -13,7 +13,6 @@ SUITE = BenchmarkGroup()
 ## Test PairPotential
 
 SUITE["SimplePairPotential"] = BenchmarkGroup()
-SUITE["ParametricPairPotentialPairPotential"] = BenchmarkGroup()
 
 fname = joinpath(pkgdir(EmpiricalPotentials), "data", "TiAl-1024.xyz")
 data = ExtXYZ.load(fname) |> FastSystem
