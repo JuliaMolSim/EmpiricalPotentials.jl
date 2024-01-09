@@ -25,6 +25,7 @@ nlist = PairList(data, cutoff_radius(lj))
 
 SUITE["SimplePairPotential"]["energy"] = BenchmarkGroup()
 SUITE["SimplePairPotential"]["energy_forces"] = BenchmarkGroup()
+SUITE["SimplePairPotential"]["virial"] = BenchmarkGroup()
 
 SUITE["SimplePairPotential"]["energy"]["no nlist given"] = @benchmarkable AtomsCalculators.potential_energy($data, $lj)
 SUITE["SimplePairPotential"]["energy"]["nlist given"] = @benchmarkable AtomsCalculators.potential_energy($data, $lj; nlist=$nlist)
@@ -32,15 +33,22 @@ SUITE["SimplePairPotential"]["energy"]["nlist given"] = @benchmarkable AtomsCalc
 SUITE["SimplePairPotential"]["energy_forces"]["no nlist given"] = @benchmarkable AtomsCalculators.energy_forces($data, $lj)
 SUITE["SimplePairPotential"]["energy_forces"]["nlist given"] = @benchmarkable AtomsCalculators.energy_forces($data, $lj; nlist=$nlist)
 
+SUITE["SimplePairPotential"]["virial"]["no nlist given"] = @benchmarkable AtomsCalculators.virial($data, $lj)
+SUITE["SimplePairPotential"]["virial"]["nlist given"] = @benchmarkable AtomsCalculators.virial($data, $lj; nlist=$nlist)
+
 
 SUITE["ParametricPairPotential"]["energy"] = BenchmarkGroup()
 SUITE["ParametricPairPotential"]["energy_forces"] = BenchmarkGroup()
+SUITE["ParametricPairPotential"]["virial"] = BenchmarkGroup()
 
 SUITE["ParametricPairPotential"]["energy"]["no nlist given"] = @benchmarkable AtomsCalculators.potential_energy($data, $ljp)
 SUITE["ParametricPairPotential"]["energy"]["nlist given"] = @benchmarkable AtomsCalculators.potential_energy($data, $ljp; nlist=$nlist)
 
 SUITE["ParametricPairPotential"]["energy_forces"]["no nlist given"] = @benchmarkable AtomsCalculators.energy_forces($data, $ljp)
 SUITE["ParametricPairPotential"]["energy_forces"]["nlist given"] = @benchmarkable AtomsCalculators.energy_forces($data, $ljp; nlist=$nlist)
+
+SUITE["ParametricPairPotential"]["virial"]["no nlist given"] = @benchmarkable AtomsCalculators.virial($data, $ljp)
+SUITE["ParametricPairPotential"]["virial"]["nlist given"] = @benchmarkable AtomsCalculators.virial($data, $ljp; nlist=$nlist)
 
 
 SUITE["ParametricPairPotential"]["parameter estimation"] = BenchmarkGroup()
