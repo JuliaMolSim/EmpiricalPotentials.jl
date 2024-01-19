@@ -80,11 +80,11 @@ from [Stillinger/Weber, PRB 1985].
 
 The `StillingerWeber` type can also by "abused" to generate arbitrary
 bond-angle potentials of the form
-   ∑_{i,j} V2(rij) + ∑_{i,j,k} V3(rij) V3(rik) (cos Θijk + 1/3)^2
+   Σᵢⱼ V₂(rᵢⱼ) + Σᵢⱼₖ V₃(rᵢⱼ) V₃(rᵢₖ) (cos Θᵢⱼₖ + 1/3)²
 
 Constructor admits the following key-word parameters:
 `ϵ=2.1675, σ = 2.0951, A=7.049556277, B=0.6022245584,
-                  p = 4, a = 1.8, λ=21.0, γ=1.20`
+   p = 4, a = 1.8, λ=21.0, γ=1.20, atom_number=14`
 
 which enter the potential as follows:
 ```
@@ -95,87 +95,128 @@ V3(r) = sqrt(ϵ * λ) * exp(γ / (r/σ - a))
 The `brittle` keyword can be used to switch to the parameters λ to 42.0, 
 which is appropriate to simulate brittle fracture. (need reference for this)
 """
-struct StillingerWeber{P1, P2, T} <: SitePotential
+struct StillingerWeber{P1, P2, T, TI} <: SitePotential
    V2::P1
    V3::P2
    rcut::T
    pool::TSafe{ArrayPool{FlexArrayCache}}
    meta::Dict{Symbol, T}
+   atomic_id::TI
 end
 
-cutoff_radius(calc::StillingerWeber) = calc.rcut
+cutoff_radius(calc::StillingerWeber) = calc.rcut * u"Å"
 
-function StillingerWeber(; brittle = false,
-               ϵ=2.1675, σ = 2.0951, A=7.049556277, B=0.6022245584,
-               p = 4, a = 1.8, λ = brittle ? 42.0 : 21.0, γ=1.20 )
+function StillingerWeber(;
+   brittle = false,
+   ϵ = 2.1675, 
+   σ = 2.0951, 
+   A = 7.049556277, 
+   B = 0.6022245584,
+   p = 4, 
+   a = 1.8, 
+   λ = brittle ? 42.0 : 21.0, 
+   γ = 1.20,
+   atom_number = 14  # = Si
+)
    rcut = a * σ - 1e-2 # the 1e-2 is due to avoid the numerical issues 
                        # in the exp(1.0/(r/σ - a) like terms 
    V2 = r -> r >= rcut ? 0.0 : (ϵ*A) * (B*(r/σ)^(-p) - 1.0) * exp(1.0/(r/σ - a))
    V3 = r -> r >= rcut ? 0.0 : sqrt(ϵ * λ) * exp( γ / (r/σ - a) )
    meta = Dict(:ϵ => ϵ, :σ => σ, :A => A, :B => B, :p => p, :a => a,
                :λ => λ, :γ => γ, :brittle => brittle, :rcut => rcut)
-   return StillingerWeber(V2, V3, rcut, 
-                          TSafe(ArrayPool(FlexArrayCache)), 
-                          meta) 
+   return StillingerWeber(
+      V2, 
+      V3, 
+      rcut, 
+      TSafe(ArrayPool(FlexArrayCache)), 
+      meta,
+      atom_number
+   ) 
 end
 
 
 function eval_site(calc::StillingerWeber, Rs, Zs, z0)
-   # TODO: insert assertion that all Zs are Si and z0 is also Si 
+   if z0 != calc.atomic_id
+      return ustrip(zero(calc))
+   end
+   Rs = [ rᵢ for (zᵢ, rᵢ) in zip(Zs,Rs) if zᵢ == calc.atomic_id ]
+   Zs = filter(id-> id == calc.atomic_id, Zs)
 
    TF = eltype(eltype(Rs))
    Nr = length(Rs)
-   Ei = zero(TF) 
+   Eᵢ = zero(TF) 
    S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
    V3 = acquire!(calc.pool, :V3, (Nr,), TF)
-   rcut = cutoff_radius(calc)
 
-   for j = 1:Nr
+   for j in eachindex(Rs)
       r = norm(Rs[j])
-      S[j] = Rs[j] / r
+      S[j] = Rs[j] / r  # S[j] is used later
       V3[j] = calc.V3(r)
-      Ei += 0.5 * calc.V2(r)
+      Eᵢ += calc.V2(r) / 2
    end
 
-   for j1 = 1:(Nr-1), j2 = (j1+1):Nr
-      Ei += V3[j1] * V3[j2] * sw_bondangle(S[j1], S[j2])
+   for j₁ in 1:Nr, j₂ in j₁+1:Nr
+      Eᵢ += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
    end
 
    release!(S); release!(V3)
 
-   return Ei
+   return Eᵢ
 end
 
 
 function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
-   # TODO: insert assertion that all Zs are Si and z0 is also Si 
+   # TODO: insert assertion that all Zs are Si and z0 is also Si
+   f = zeros(SVector{3, Float64}, length(Zs))
+   Eᵢ = ustrip(zero(calc)) 
+   if z0 != calc.atomic_id
+      return Eᵢ, f
+   end
+   Rs = [ rᵢ for (zᵢ, rᵢ) in zip(Zs,Rs) if zᵢ == calc.atomic_id ]
+   ind = [ i for (i, zᵢ) in enumerate(Zs) if zᵢ == calc.atomic_id ]
+   Zs = filter(id-> id == calc.atomic_id, Zs)
 
    TF = eltype(eltype(Rs))
    Nr = length(Rs)
-   Ei = zero(TF)
-   rcut = cutoff_radius(calc)
    r = acquire!(calc.pool, :r, (Nr,), TF)
    S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
    V3 = acquire!(calc.pool, :V3, (Nr,), TF)
    gV3 = acquire!(calc.pool, :gV3, (Nr,), SVector{3, TF})
    dEs = acquire!(calc.pool, :dEs, (Nr,), SVector{3, TF})
 
-   for i = 1:Nr  # shouldn't be i but j. TODO: fix this
-      r[i] = ri = norm(Rs[i])
-      S[i] = 𝐫̂i = Rs[i] / ri
-      V3[i] = calc.V3(ri)
-      gV3[i] = ForwardDiff.derivative(calc.V3, ri) * 𝐫̂i
-      dEs[i] = 0.5 * ForwardDiff.derivative(calc.V2, ri) * 𝐫̂i
-   end
-   for i1 = 1:(Nr-1), i2 = (i1+1):Nr
-      a, b1, b2 = sw_bondangle_d(S[i1], S[i2], r[i1], r[i2])
-      dEs[i1] += (V3[i1] * V3[i2]) * b1 + (V3[i2] * a) * gV3[i1]
-      dEs[i2] += (V3[i1] * V3[i2]) * b2 + (V3[i1] * a) * gV3[i2]
+   d_result = DiffResults.DiffResult(Eᵢ, Eᵢ)
+   for j in eachindex(Rs)
+      r[j] = rⱼ = norm(Rs[j])
+      S[j] = 𝐫̂ⱼ = Rs[j] / rⱼ
+      
+      d_result = ForwardDiff.derivative!(d_result, calc.V3, rⱼ)
+      te::TF = DiffResults.value(d_result)
+      V3[j] = te
+      tmp::TF =  DiffResults.derivative(d_result)
+      gV3[j] = tmp * 𝐫̂ⱼ
+
+      d_result = ForwardDiff.derivative!(d_result, calc.V2, rⱼ)
+      te = DiffResults.value(d_result)
+      Eᵢ += te
+      tmp =  DiffResults.derivative(d_result)
+      dEs[j] = tmp * (𝐫̂ⱼ/2)
    end
 
-   release!(r); release!(S); release!(V3); release!(gV3)
+   for j₁ in 1:Nr, j₂ in j₁+1:Nr
+      Eᵢ += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
+      a, b₁, b₂ = sw_bondangle_d(S[j₁], S[j₂], r[j₁], r[j₂])
+      dEs[j₁] += (V3[j₁] * V3[j₂]) * b₁ + (V3[j₂] * a) * gV3[j₁]
+      dEs[j₂] += (V3[j₁] * V3[j₂]) * b₂ + (V3[j₁] * a) * gV3[j₂]
+   end
+   
+   # Index conversion back
+   for (i,j)  in enumerate(ind)
+      f[j] = dEs[i]
+   end
 
-   return dEs
+   release!(r); release!(S); release!(V3); release!(gV3); release!(dEs)
+
+   return Eᵢ, f
 end
 
 
