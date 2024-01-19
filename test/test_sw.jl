@@ -117,7 +117,7 @@ end
 fname = joinpath(pkgdir(EmpiricalPotentials), "data", "TiAl-1024.xyz")
 data = ExtXYZ.load(fname) |> FastSystem
 
-sw = StillingerWeber()
+sw = StillingerWeber(; atom_number=13)
 
 test_potential_energy(data, sw)
 test_forces(data, sw)
