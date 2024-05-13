@@ -184,8 +184,10 @@ function AtomsCalculators.energy_forces!(f::AbstractVector, at, V::SitePotential
       Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
       v, dv = eval_grad_site(V, Rs, Zs, z0)
       E += v 
-      f[Js] -= dv * force_unit(V)
-      f[i]  += sum(dv) * force_unit(V)
+      for α = 1:length(Js)
+         f[Js[α]] -= dv[α] * force_unit(V)
+         f[i]     += dv[α] * force_unit(V)
+      end
       release!(Js); release!(Rs); release!(Zs); release!(dv)
    end
    return (; :energy => E * energy_unit(V), :force => f)
@@ -210,8 +212,10 @@ function AtomsCalculators.energy_forces(
          Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
          v, dv = eval_grad_site(V, Rs, Zs, z0)
          E += v * energy_unit(V)
-         f[Js] -= dv * force_unit(V)
-         f[i]  += sum(dv) * force_unit(V)
+         for α = 1:length(Js)
+            f[Js[α]] -= dv[α] * force_unit(V)
+            f[i]     += dv[α] * force_unit(V)
+         end
          release!(Js); release!(Rs); release!(Zs); release!(dv)
       end
       [E, f]
@@ -278,8 +282,10 @@ function AtomsCalculators.energy_forces_virial(
          Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
          v, dv = eval_grad_site(V, Rs, Zs, z0)
          E += v * energy_unit(V)
-         f[Js] -= dv * force_unit(V)
-         f[i]  += sum(dv) * force_unit(V)
+         for α = 1:length(Js)
+            f[Js[α]] -= dv[α] * force_unit(V)
+            f[i]     += dv[α] * force_unit(V)
+         end
          vir += site_virial(V, dv, Rs)
          release!(Js); release!(Rs); release!(Zs); release!(dv)
       end
@@ -334,8 +340,10 @@ function AtomsCalculators.forces(
       for i in sub_domain
          Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
          dv = eval_grad_site(V, V.parameters, Rs, Zs, z0)
-         f[Js] -= dv
-         f[i]  += sum(dv)
+         for α = 1:length(Js)
+            f[Js[α]] -= dv[α] * force_unit(V)
+            f[i]     += dv[α] * force_unit(V)
+         end
          release!(Js); release!(Rs); release!(Zs); release!(dv)
       end
       f
