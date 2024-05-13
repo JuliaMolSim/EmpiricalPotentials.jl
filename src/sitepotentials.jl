@@ -185,10 +185,10 @@ function AtomsCalculators.energy_forces!(f::AbstractVector, at, V::SitePotential
       v, dv = eval_grad_site(V, Rs, Zs, z0)
       E += v 
       # we have to update the forces in a loop since Js indices can be repeated
-      for α = 1:length(Js)
+      for α in 1:length(Js)
          f[Js[α]] -= dv[α] * force_unit(V)
-         f[i]     += dv[α] * force_unit(V)
       end
+      f[i] = sum(dv) * force_unit(V)
       release!(Js); release!(Rs); release!(Zs); release!(dv)
    end
    return (energy = E * energy_unit(V), forces = f,)
@@ -214,10 +214,10 @@ function AtomsCalculators.energy_forces(
          v, dv = eval_grad_site(V, Rs, Zs, z0)
          E += v * energy_unit(V)
          # we have to update the forces in a loop since Js indices can be repeated
-         for α = 1:length(Js)
+         for α in 1:length(Js)
             f[Js[α]] -= dv[α] * force_unit(V)
-            f[i]     += dv[α] * force_unit(V)
          end
+         f[i] = sum(dv) * force_unit(V)
          release!(Js); release!(Rs); release!(Zs); release!(dv)
       end
       [E, f]
@@ -290,10 +290,10 @@ function AtomsCalculators.energy_forces_virial(
          v, dv = eval_grad_site(V, Rs, Zs, z0)
          E += v * energy_unit(V)
          # we have to update the forces in a loop since Js indices can be repeated
-         for α = 1:length(Js)
+         for α in 1:length(Js)
             f[Js[α]] -= dv[α] * force_unit(V)
-            f[i]     += dv[α] * force_unit(V)
          end
+         f[i] += sum(dv) * force_unit(V)
          vir += site_virial(V, dv, Rs)
          release!(Js); release!(Rs); release!(Zs); release!(dv)
       end
@@ -349,10 +349,10 @@ function AtomsCalculators.forces(
          Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
          dv = eval_grad_site(V, V.parameters, Rs, Zs, z0)
          # we have to update the forces in a loop since Js indices can be repeated
-         for α = 1:length(Js)
+         for α in 1:length(Js)
             f[Js[α]] -= dv[α]
-            f[i]     += dv[α]
          end
+         f[i] += sum(dv) 
          release!(Js); release!(Rs); release!(Zs); release!(dv)
       end
       f
