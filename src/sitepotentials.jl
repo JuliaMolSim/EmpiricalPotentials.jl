@@ -190,7 +190,7 @@ function AtomsCalculators.energy_forces!(f::AbstractVector, at, V::SitePotential
       end
       release!(Js); release!(Rs); release!(Zs); release!(dv)
    end
-   return (; :energy => E * energy_unit(V), :force => f)
+   return (; :energy => E * energy_unit(V), :forces => f)
 end
 
 function AtomsCalculators.energy_forces(
@@ -220,7 +220,7 @@ function AtomsCalculators.energy_forces(
       end
       [E, f]
    end
-   return (; :energy => E_F[1], :force => E_F[2])
+   return (; :energy => E_F[1], :forces => E_F[2])
 end
 
 AtomsCalculators.forces(at, V::SitePotential; kwargs...) = AtomsCalculators.energy_forces(at, V; kwargs...)[:force]
@@ -291,7 +291,7 @@ function AtomsCalculators.energy_forces_virial(
       end
       [E, f, vir]
    end
-   return (; :energy => E_F_V[1], :force => E_F_V[2], :virial => E_F_V[3])
+   return (; :energy => E_F_V[1], :forces => E_F_V[2], :virial => E_F_V[3])
 end
 
 
