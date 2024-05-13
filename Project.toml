@@ -19,7 +19,7 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [compat]
 AtomsBase = "0.3"
-AtomsCalculators = "0.1.1"
+AtomsCalculators = "0.1.2, 0.2"
 ChunkSplitters = "2"
 DiffResults = "1"
 Folds = "0.2.8"
