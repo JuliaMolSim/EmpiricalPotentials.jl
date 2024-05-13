@@ -1,71 +1,45 @@
 
 
-abstract type AbstractZList end
 
 """
-`ZList` and `SZList{NZ}` : simple data structures that store a list
-of species and convert between atomic numbers and the index in the list.
-Can be constructed via
-* `ZList(zors)` : where `zors` is an Integer  or `Symbol` (single species)
-* `ZList(zs1, zs2, ..., zsn)`
-* `ZList([sz1, zs2, ..., zsn])`
-* All of these take a kwarg `static = {true, false}`; if `true`, then `ZList`
-will return a `SZList{NZ}` for (possibly) faster access.
+`CatList` : simple data structure that stores a list of objects, the main 
+use-case being converting between indices and categories. We use it to 
+convert between chemical species (e.g. atomic numbers) and indices  in a list.
+
+Constructor: 
+```julia
+list = CatList(list)
+```
+Indexing: 
+```julia
+list[i]       # returns the i-th category of the list
+i2z(list, i)  # returns the i-th category of the list
+z2i(list, z)  # returns the index of the category z in the list
+```
 """
-struct ZList <: AbstractZList
-   list::Vector{AtomicNumber}
-end
+struct CatList{T}
+   list::NTuple{N, T}
 
-Base.length(zlist::AbstractZList) = length(zlist.list)
-
-
-struct SZList{N} <: AbstractZList
-   list::SVector{N, AtomicNumber}
-end
-
-function ZList(zlist::AbstractVector{<: Number};
-               static = false, sorted=true)
-   sortfun = sorted ? sort : identity
-   return (static ? SZList(SVector( (AtomicNumber.(sortfun(zlist)))... ))
-                  :  ZList( convert(Vector{AtomicNumber}, sortfun(zlist)) ))
-end
-
-ZList(s::Symbol; kwargs...) =
-      ZList( [ atomic_number(s) ]; kwargs... )
-
-ZList(S::AbstractVector{Symbol}; kwargs...) =
-      ZList( atomic_number.(S); kwargs... )
-
-ZList(args...; kwargs... ) =
-      ZList( [args...]; kwargs...)
-
-
-i2z(Zs::AbstractZList, i::Integer) = Zs.list[i]
-
-function z2i(Zs::AbstractZList, z::AtomicNumber)
-   if Zs.list[1] == JuLIP.Chemistry.__zAny__
-      return 1
+   function CatList(list1)
+      list = ntuple(i -> list1[i], length(list1))
+      return new{length(list), eltype(list)}(list)
    end
-   for j = 1:length(Zs.list)
-      if Zs.list[j] == z
+end
+
+Base.length(zlist::CatList) = length(zlist.list)
+
+Base.getindex(zlist::CatList, i::Integer) = zlist.list[i]
+
+i2z(zlist::CatList, i::Integer) = Zs.list[i]
+
+function z2i(zlist::CatList, z)
+   for j = 1:length(zlist.list)
+      if zlist.list[j] == z
          return j
       end
    end
+   # not sure we want to raise an exception here. Better to just 
+   # return an invalid index?  But -1 is not really invalid for some arrays
    error("z = $z not found in ZList $(Zs.list)")
+   return -1 
 end
-
-zlist(V) = V.zlist
-i2z(V, i::Integer) = i2z(zlist(V), i)
-z2i(V, z::AtomicNumber ) = z2i(zlist(V), z)
-numz(V) = length(zlist(V))
-
-write_dict(zlist::ZList) = Dict("__id__" => "JuLIP_ZList",
-                                  "list" => Int.(zlist.list))
-
-read_dict(::Val{:JuLIP_ZList}, D::Dict) = ZList(D)
-ZList(D::Dict) = ZList(D["list"])
-
-write_dict(zlist::SZList) = Dict("__id__" => "JuLIP_SZList",
-                                 "list" => Int.(zlist.list))
-read_dict(::Val{:JuLIP_SZList}, D::Dict) = SZList(D)
-SZList(D::Dict) = ZList([D["list"]...], static = true)
