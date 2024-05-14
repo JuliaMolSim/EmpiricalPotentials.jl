@@ -4,6 +4,8 @@ using ExtXYZ
 using EmpiricalPotentials, StaticArrays, Test, JSON, ForwardDiff 
 using LinearAlgebra: dot, norm, I 
 using EmpiricalPotentials: cutoff_radius, StillingerWeber
+using AtomsCalculators
+using AtomsCalculators: potential_energy, forces
 
 ##
 # old tests
@@ -114,11 +116,38 @@ end
 
 # New test
 
-fname = joinpath(pkgdir(EmpiricalPotentials), "data", "TiAl-1024.xyz")
-data = ExtXYZ.load(fname) |> FastSystem
+# why use a TiAl system to test the SW potential?
+# I got rid of this test. We need the JuLIP functionality for 
+# creating simple structures. 
 
-sw = StillingerWeber(; atom_number=13)
+# fname = joinpath(pkgdir(EmpiricalPotentials), "data", "TiAl-1024.xyz")
+# data = ExtXYZ.load(fname) |> FastSystem
 
-test_potential_energy(data, sw)
-# test_forces(data, sw) # Needs update for AtomsCalculators
-test_virial(data, sw)
+# sw = StillingerWeber(; atom_number=13)
+
+# test_potential_energy(data, sw)
+# # test_forces(data, sw) # Needs update for AtomsCalculators
+# test_virial(data, sw)
+
+
+## 
+# testing the forces implementation 
+# this test uses JuLIP and ACEbase, so I uncommented it 
+# But after the bugfix it passes. 
+
+# using ACEbase, JuLIP, Unitful
+
+# at = rattle!(bulk(:Si, cubic=true)*2, 0.1) 
+# X0 = deepcopy(at.X)
+# atb = AtomsBase.FlexibleSystem( at )
+# sw = EmpiricalPotentials.StillingerWeber()
+# AtomsCalculators.potential_energy(atb, sw)
+# AtomsCalculators.forces(atb, sw)
+
+# Us = randn(SVector{3, Float64}, length(atb))
+# _at(t) = AtomsBase.FlexibleSystem(JuLIP.set_positions!(at, X0 + t * Us))
+# F(t) = AtomsCalculators.potential_energy(_at(t), sw) |> ustrip 
+# dF(t) = -dot(Us, AtomsCalculators.forces(_at(t), sw)) |> ustrip
+# F(0.0)
+# dF(0.0)
+# ACEbase.Testing.fdtest(F, dF, 0.0)

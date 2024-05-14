@@ -184,11 +184,14 @@ function AtomsCalculators.energy_forces!(f::AbstractVector, at, V::SitePotential
       Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
       v, dv = eval_grad_site(V, Rs, Zs, z0)
       E += v 
-      f[Js] -= dv * force_unit(V)
-      f[i]  += sum(dv) * force_unit(V)
+      # we have to update the forces in a loop since Js indices can be repeated
+      for α in 1:length(Js)
+         f[Js[α]] -= dv[α] * force_unit(V)
+      end
+      f[i] = sum(dv) * force_unit(V)
       release!(Js); release!(Rs); release!(Zs); release!(dv)
    end
-   return (; :energy => E * energy_unit(V), :force => f)
+   return (energy = E * energy_unit(V), forces = f,)
 end
 
 function AtomsCalculators.energy_forces(
@@ -210,18 +213,26 @@ function AtomsCalculators.energy_forces(
          Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
          v, dv = eval_grad_site(V, Rs, Zs, z0)
          E += v * energy_unit(V)
-         f[Js] -= dv * force_unit(V)
-         f[i]  += sum(dv) * force_unit(V)
+         # we have to update the forces in a loop since Js indices can be repeated
+         for α in 1:length(Js)
+            f[Js[α]] -= dv[α] * force_unit(V)
+         end
+         f[i] = sum(dv) * force_unit(V)
          release!(Js); release!(Rs); release!(Zs); release!(dv)
       end
       [E, f]
    end
-   return (; :energy => E_F[1], :force => E_F[2])
+   return (energy = E_F[1], forces = E_F[2],)
 end
 
-AtomsCalculators.forces(at, V::SitePotential; kwargs...) = AtomsCalculators.energy_forces(at, V; kwargs...)[:force]
-AtomsCalculators.forces!(f, at, V::SitePotential; kwargs...) = AtomsCalculators.energy_forces!(f, at, V; kwargs...)[:force]
-AtomsCalculators.calculate(::AtomsCalculators.Forces, at, V::SitePotential; kwargs...) = (; :forces => AtomsCalculators.forces(at, V; kwargs...) )
+AtomsCalculators.forces(at, V::SitePotential; kwargs...) = 
+      AtomsCalculators.energy_forces(at, V; kwargs...)[:forces]
+
+AtomsCalculators.forces!(f, at, V::SitePotential; kwargs...) = 
+      AtomsCalculators.energy_forces!(f, at, V; kwargs...)[:forces]
+
+AtomsCalculators.calculate(::AtomsCalculators.Forces, at, V::SitePotential; kwargs...) = 
+      (forces = AtomsCalculators.forces(at, V; kwargs...), )
 
 function site_virial(V, dV, Rs) 
    if length(Rs) == 0
@@ -278,14 +289,17 @@ function AtomsCalculators.energy_forces_virial(
          Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
          v, dv = eval_grad_site(V, Rs, Zs, z0)
          E += v * energy_unit(V)
-         f[Js] -= dv * force_unit(V)
-         f[i]  += sum(dv) * force_unit(V)
+         # we have to update the forces in a loop since Js indices can be repeated
+         for α in 1:length(Js)
+            f[Js[α]] -= dv[α] * force_unit(V)
+         end
+         f[i] += sum(dv) * force_unit(V)
          vir += site_virial(V, dv, Rs)
          release!(Js); release!(Rs); release!(Zs); release!(dv)
       end
       [E, f, vir]
    end
-   return (; :energy => E_F_V[1], :force => E_F_V[2], :virial => E_F_V[3])
+   return (energy = E_F_V[1], forces = E_F_V[2], virial = E_F_V[3],)
 end
 
 
@@ -334,8 +348,11 @@ function AtomsCalculators.forces(
       for i in sub_domain
          Js, Rs, Zs, z0 = get_neighbours(at, V, nlist, i) 
          dv = eval_grad_site(V, V.parameters, Rs, Zs, z0)
-         f[Js] -= dv
-         f[i]  += sum(dv)
+         # we have to update the forces in a loop since Js indices can be repeated
+         for α in 1:length(Js)
+            f[Js[α]] -= dv[α]
+         end
+         f[i] += sum(dv) 
          release!(Js); release!(Rs); release!(Zs); release!(dv)
       end
       f
