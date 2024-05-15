@@ -1,7 +1,7 @@
 name = "EmpiricalPotentials"
 uuid = "38527215-9240-4c91-a638-d4250620c9e2"
 authors = ["Christoph Ortner <christohortner@gmail.com> and contributors"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 AtomsBase = "a963bdd2-2df7-4f54-a1ee-49d51e6be12a"
