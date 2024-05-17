@@ -188,7 +188,7 @@ function AtomsCalculators.energy_forces!(f::AbstractVector, at, V::SitePotential
       for α in 1:length(Js)
          f[Js[α]] -= dv[α] * force_unit(V)
       end
-      f[i] = sum(dv) * force_unit(V)
+      f[i] += sum(dv) * force_unit(V)
       release!(Js); release!(Rs); release!(Zs); release!(dv)
    end
    return (energy = E * energy_unit(V), forces = f,)
@@ -217,7 +217,7 @@ function AtomsCalculators.energy_forces(
          for α in 1:length(Js)
             f[Js[α]] -= dv[α] * force_unit(V)
          end
-         f[i] = sum(dv) * force_unit(V)
+         f[i] += sum(dv) * force_unit(V)
          release!(Js); release!(Rs); release!(Zs); release!(dv)
       end
       [E, f]
