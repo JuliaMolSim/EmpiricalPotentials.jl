@@ -66,11 +66,13 @@ function hessian(sys, V::SitePotential;
    Js, Rs, Zs, z0 = get_neighbours(sys, V, nlist, 1) 
    E1 = eval_site(V, Rs, Zs, z0) 
    TF = typeof(E1)
+   hU = energy_unit(V) / length_unit(V)^2
+   TFU = typeof(E1 * hU)
    # assuming here that the type of everything else will be the same?
    # need to think whether this is a restriction. 
    # also need to do something about fucking units 
 
-   H = zeros(TF, D*Nat, D*Nat)
+   H = zeros(TFU, D*Nat, D*Nat)
 
    for i in domain 
       Js, Rs, Zs, z0 = get_neighbours(sys, V, nlist, i) 
@@ -84,10 +86,10 @@ function hessian(sys, V::SitePotential;
          A2 = (α2-1) * D .+ (1:D)
          J1 = (j1-1) * D .+ (1:D)
          J2 = (j2-1) * D .+ (1:D)
-         H[J1, J2] += Hi[A1, A2]
-         H[J1, Ji] -= Hi[A1, A2]
-         H[Ji, J2] -= Hi[A1, A2]
-         H[Ji, Ji] += Hi[A1, A2]
+         H[J1, J2] += Hi[A1, A2] .* hU
+         H[J1, Ji] -= Hi[A1, A2] .* hU
+         H[Ji, J2] -= Hi[A1, A2] .* hU
+         H[Ji, Ji] += Hi[A1, A2] .* hU
       end
    end
 
@@ -115,11 +117,14 @@ function block_hessian(sys, V::SitePotential;
    Js, Rs, Zs, z0 = get_neighbours(sys, V, nlist, 1) 
    E1 = eval_site(V, Rs, Zs, z0) 
    TF = typeof(E1)
+   hU = energy_unit(V) / length_unit(V)^2
+   TFU = typeof(E1 * hU)
+
    # assuming here that the type of everything else will be the same?
    # need to think whether this is a restriction. 
    # also need to do something about fucking units 
 
-   H = zeros(SMatrix{D, D, TF}, Nat, Nat)
+   H = zeros(SMatrix{D, D, TFU}, Nat, Nat)
 
    for i in domain 
       Js, Rs, Zs, z0 = get_neighbours(sys, V, nlist, i) 
@@ -130,10 +135,10 @@ function block_hessian(sys, V::SitePotential;
       # where 𝐫_ij1 = 𝐫_j1 - 𝐫_i
       nRs = length(Js)
       for (α1, j1) in enumerate(Js), (α2, j2) in enumerate(Js)
-         H[j1, j2] += Hi[α1, α2]
-         H[j1, i] -= Hi[α1, α2]
-         H[i, j2] -= Hi[α1, α2]
-         H[i, i] += Hi[α1, α2]
+         H[j1, j2] += Hi[α1, α2] * hU
+         H[j1, i] -= Hi[α1, α2] * hU
+         H[i, j2] -= Hi[α1, α2] * hU
+         H[i, i] += Hi[α1, α2] * hU
       end
    end
 

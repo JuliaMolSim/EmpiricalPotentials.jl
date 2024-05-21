@@ -69,7 +69,7 @@ for ntest = 1:10
    F(t) = - dot(forces(_sys(X0 + t * Us), sw), Vs) 
    F(0.0)
    H0 = EP.block_hessian(_sys(X0), sw)
-   dF0 = dot(H0 * ustrip.(Us), ustrip.(Vs))
+   dF0 = dot(H0 * Us, Vs)
    @test ACT.fdtest(F, t -> dF0, 0.0; verbose = false )
 end
 

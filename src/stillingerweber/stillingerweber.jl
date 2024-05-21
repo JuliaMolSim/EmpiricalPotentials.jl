@@ -87,6 +87,10 @@ struct StillingerWeber{P1, P2, T, TI} <: SitePotential
    atomic_id::TI
 end
 
+energy_unit(calc::StillingerWeber) = u"eV"
+length_unit(calc::StillingerWeber) = u"Å"
+force_unit(calc::StillingerWeber) = u"eV/Å"
+
 cutoff_radius(calc::StillingerWeber) = calc.rcut * u"Å"
 
 function StillingerWeber(;
