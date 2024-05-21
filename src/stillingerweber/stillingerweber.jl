@@ -23,6 +23,7 @@
 
 
 using ForwardDiff, ObjectPools, StaticArrays
+using ForwardDiff: Dual 
 
 using LinearAlgebra: dot, norm 
 
@@ -52,24 +53,6 @@ function sw_bondangle_d(S1, S2, r1, r2)
    return (d+1.0/3.0)^2, 2.0*(d+1.0/3.0)*b1, 2.0*(d+1.0/3.0)*b2
 end
 
-
-function _ad_sw_bondangle_(R)
-   R1, R2 = R[1:3], R[4:6]
-   r1, r2 = norm(R1), norm(R2)
-   return sw_bondangle(R1/r1, R2/r2)
-end
-
-# TODO: need a faster implementation of sw_bondangle_dd
-function sw_bondangle_dd(R1, R2)
-   R = [R1; R2]
-   hh = ForwardDiff.hessian(_ad_sw_bondangle_, R)
-   h = zeros(JMatF, 2,2)
-   h[1,1] = JMatF(hh[1:3,1:3])
-   h[1,2] = JMatF(hh[1:3, 4:6])
-   h[2,1] = JMatF(hh[4:6,1:3])
-   h[2,2] = JMatF(hh[4:6, 4:6])
-   return h
-end
 
 
 """
@@ -165,99 +148,104 @@ function eval_site(calc::StillingerWeber, Rs, Zs, z0)
 end
 
 
+# function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
+#    TF = eltype(eltype(Rs))
+#    f = zeros(SVector{3, TF}, length(Zs))
+#    Eᵢ = zero(TF)
+#    # if z0 != calc.atomic_id
+#    #    return Eᵢ, f
+#    # end
+#    # Rs = [ rᵢ for (zᵢ, rᵢ) in zip(Zs,Rs) if zᵢ == calc.atomic_id ]
+#    # ind = [ i for (i, zᵢ) in enumerate(Zs) if zᵢ == calc.atomic_id ]
+#    # Zs = filter(id-> id == calc.atomic_id, Zs)
+#    @assert z0 == calc.atomic_id
+#    @assert all(Zs .== calc.atomic_id)
+
+#    Nr = length(Rs)
+#    r = acquire!(calc.pool, :r, (Nr,), TF)
+#    S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
+#    V3 = acquire!(calc.pool, :V3, (Nr,), TF)
+#    gV3 = acquire!(calc.pool, :gV3, (Nr,), SVector{3, TF})
+#    dEs = acquire!(calc.pool, :dEs, (Nr,), SVector{3, TF})
+
+#    d_result = DiffResults.DiffResult(Eᵢ, Eᵢ)
+#    for j in eachindex(Rs)
+#       r[j] = rⱼ = norm(Rs[j])
+#       S[j] = 𝐫̂ⱼ = Rs[j] / rⱼ
+      
+#       d_result = ForwardDiff.derivative!(d_result, calc.V3, rⱼ)
+#       te::TF = DiffResults.value(d_result)
+#       V3[j] = te
+#       tmp::TF =  DiffResults.derivative(d_result)
+#       gV3[j] = tmp * 𝐫̂ⱼ
+
+#       d_result = ForwardDiff.derivative!(d_result, calc.V2, rⱼ)
+#       te = DiffResults.value(d_result)
+#       Eᵢ += te
+#       tmp =  DiffResults.derivative(d_result)
+#       dEs[j] = tmp * (𝐫̂ⱼ/2)
+#    end
+
+#    for j₁ in 1:Nr, j₂ in j₁+1:Nr
+#       Eᵢ += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
+#       a, b₁, b₂ = sw_bondangle_d(S[j₁], S[j₂], r[j₁], r[j₂])
+#       dEs[j₁] += (V3[j₁] * V3[j₂]) * b₁ + (V3[j₂] * a) * gV3[j₁]
+#       dEs[j₂] += (V3[j₁] * V3[j₂]) * b₂ + (V3[j₁] * a) * gV3[j₂]
+#    end
+   
+#    # Index conversion back
+#    # for (i,j)  in enumerate(ind)
+#    for j = 1:Nr
+#       f[j] = dEs[j]
+#    end
+
+#    release!(r); release!(S); release!(V3); release!(gV3); release!(dEs)
+
+#    return Eᵢ, f
+# end
+
+
 function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
-   # TODO: insert assertion that all Zs are Si and z0 is also Si
-   f = zeros(SVector{3, Float64}, length(Zs))
-   Eᵢ = ustrip(zero(calc)) 
-   if z0 != calc.atomic_id
-      return Eᵢ, f
-   end
-   Rs = [ rᵢ for (zᵢ, rᵢ) in zip(Zs,Rs) if zᵢ == calc.atomic_id ]
-   ind = [ i for (i, zᵢ) in enumerate(Zs) if zᵢ == calc.atomic_id ]
-   Zs = filter(id-> id == calc.atomic_id, Zs)
+   Nr = length(Rs)
+   @assert length(Zs) == Nr
+   @assert z0 == calc.atomic_id
+   @assert all(Zs .== calc.atomic_id)
 
    TF = eltype(eltype(Rs))
-   Nr = length(Rs)
+   Ei = zero(TF)
+   dEi = zeros(SVector{3, TF}, length(Zs))
+
    r = acquire!(calc.pool, :r, (Nr,), TF)
    S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
    V3 = acquire!(calc.pool, :V3, (Nr,), TF)
    gV3 = acquire!(calc.pool, :gV3, (Nr,), SVector{3, TF})
-   dEs = acquire!(calc.pool, :dEs, (Nr,), SVector{3, TF})
 
-   d_result = DiffResults.DiffResult(Eᵢ, Eᵢ)
-   for j in eachindex(Rs)
+   for j = 1:Nr 
       r[j] = rⱼ = norm(Rs[j])
       S[j] = 𝐫̂ⱼ = Rs[j] / rⱼ
       
-      d_result = ForwardDiff.derivative!(d_result, calc.V3, rⱼ)
-      te::TF = DiffResults.value(d_result)
-      V3[j] = te
-      tmp::TF =  DiffResults.derivative(d_result)
-      gV3[j] = tmp * 𝐫̂ⱼ
+      dv3 = calc.V3(Dual(rⱼ, one(rⱼ)))
+      V3[j] = ForwardDiff.value(dv3) 
+      gV3[j] = ForwardDiff.partials(dv3, 1) * 𝐫̂ⱼ/2
 
-      d_result = ForwardDiff.derivative!(d_result, calc.V2, rⱼ)
-      te = DiffResults.value(d_result)
-      Eᵢ += te
-      tmp =  DiffResults.derivative(d_result)
-      dEs[j] = tmp * (𝐫̂ⱼ/2)
+      dv2 = calc.V2(Dual(rⱼ, one(rⱼ)))
+      Ei += ForwardDiff.value(dv2)
+      dEi[j] = ForwardDiff.partials(dv2, 1) * 𝐫̂ⱼ/2
    end
 
    for j₁ in 1:Nr, j₂ in j₁+1:Nr
-      Eᵢ += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
+      Ei += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
       a, b₁, b₂ = sw_bondangle_d(S[j₁], S[j₂], r[j₁], r[j₂])
-      dEs[j₁] += (V3[j₁] * V3[j₂]) * b₁ + (V3[j₂] * a) * gV3[j₁]
-      dEs[j₂] += (V3[j₁] * V3[j₂]) * b₂ + (V3[j₁] * a) * gV3[j₂]
+      dEi[j₁] += (V3[j₁] * V3[j₂]) * b₁ + (V3[j₂] * a) * gV3[j₁]
+      dEi[j₂] += (V3[j₁] * V3[j₂]) * b₂ + (V3[j₁] * a) * gV3[j₂]
    end
    
-   # Index conversion back
-   for (i,j)  in enumerate(ind)
-      f[j] = dEs[i]
-   end
+   release!(r); release!(S); release!(V3); release!(gV3);
 
-   release!(r); release!(S); release!(V3); release!(gV3); release!(dEs)
-
-   return Eᵢ, f
+   return Ei, dEi
 end
 
 
-
-# This code seems to have a bug and is therefore removed for now
-# function hess(V::StillingerWeber, r, R)
-#    n = length(r)
-#    hV = zeros(JMatF, n, n)
-#
-#    # two-body contributions
-#    for (i, (r_i, R_i)) in enumerate(zip(r, R))
-#       hV[i,i] += hess(V.V2, r_i, R_i)
-#    end
-#
-#    # three-body terms
-#    S = [ R1/r1 for (R1,r1) in zip(R, r) ]
-#    V3 = [ V.V3(r1) for r1 in r ]
-#    dV3 = [ grad(V.V3, r1, R1) for (r1, R1) in zip(r, R) ]
-#    hV3 = [ hess(V.V3, r1, R1) for (r1, R1) in zip(r, R) ]
-#
-#    for i1 = 1:(length(r)-1), i2 = (i1+1):length(r)
-#       # Es += V3[i1] * V3[i2] * bondangle(S[i1], S[i2])
-#       # precompute quantities
-#       ψ, Dψ_i1, Dψ_i2 = bondangle_d(S[i1], S[i2], r[i1], r[i2])
-#       Hψ = bondangle_dd(R[i1], R[i2])  # <<<< this should be SLOW (AD)
-#       # assemble local hessian contributions
-#       hV[i1,i1] +=
-#          hV3[i1] * V3[i2] * ψ       +   dV3[i1] * V3[i2] * Dψ_i1' +
-#          Dψ_i1 * V3[i2] * dV3[i1]'  +   V3[i1] * V3[i2] * Hψ[1,1]
-#       hV[i2,i2] +=
-#          V3[i2] * hV3[i2] * ψ       +   V3[i1] * dV3[i2] * Dψ_i2' +
-#          Dψ_i2 * V3[i1] * dV3[i2]'  +   V3[i1] * V3[i2] * Hψ[2,2]
-#       hV[i1,i2] +=
-#          dV3[i1] * dV3[i2]' * ψ     +   V3[i1] * Dψ_i1 * dV3[i2]' +
-#          dV3[i1] * V3[i2] * Dψ_i2'  +   V3[i1] * V3[i2] * Hψ[1,2]
-#       hV[i2, i1] +=
-#          dV3[i2] * dV3[i1]' * ψ     +   V3[i1] * Dψ_i2 * dV3[i1]' +
-#          dV3[i2] * V3[i1] * Dψ_i1'  +   V3[i1] * V3[i2] * Hψ[2,1]
-#    end
-#    return hV
-# end
 
 
 # ∇V  = V'(r) 𝐫̂ 

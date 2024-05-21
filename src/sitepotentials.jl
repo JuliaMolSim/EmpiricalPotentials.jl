@@ -69,18 +69,21 @@ function precon end
 # This is an attempt at a general hessian implementation 
 # It does not work, because ForwardDiff seems to not play well 
 # with SVector. It is missing a number of methods. Strange. 
-function ad_hessian(V::SitePotential, Rs::AbstractVector{SVector{3, TF}}, 
-                    Zs, z0) where TF
-   Rsvec_to_Rs = _Rsvec -> reinterpret(SVector{3, TF}, _Rsvec)
-   Rsvec = reinterpret(TF, Rs)
-   dvfun = _Rsvec -> eval_grad_site(V, Rsvec_to_Rs(_Rsvec), Zs, z0)
-   H = ForwardDiff.jacobian(dvfun, vec(Rs))
+function ad_site_hessian(V::SitePotential, Rs::AbstractVector{SVector{D, TF}}, 
+                         Zs, z0) where {D, TF}
+   Rs2x = Rs -> reinterpret(eltype(eltype(Rs)), Rs)
+   x2Rs = x -> reinterpret(SVector{D, eltype(x)}, x)
+   # f = gradient in x coordinates 
+   f = x -> Rs2x( eval_grad_site(V, x2Rs(x), Zs, z0)[2] ) 
+   # ∂f = jacobian of f so i.e. the hessian of site energy in x coords
+   ∂f = ForwardDiff.jacobian(f, Rs2x(Rs))
+   # convert to smatrix blocks 
    nR = length(Rs)
-   Hblock = zeros(SMatrix{3, 3, TF}, nR)
+   Hblock = zeros(SMatrix{D, D, TF}, nR, nR)
    for j1 = 1:nR, j2 = 1:nR 
       J1 = 3 * (j1-1) .+ (1:3)
       J2 = 3 * (j2-1) .+ (1:3)
-      Hblock[j1, j2] .= H[J1, J2]
+      Hblock[j1, j2] = SMatrix{D, D}(∂f[J1, J2])
    end
    return Hblock 
 end
