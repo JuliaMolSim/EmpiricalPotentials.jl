@@ -246,6 +246,19 @@ function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
 end
 
 
+# ---------------------------------------------------
+# the hessian implementation just uses the ForwardDiff fallbacks 
+
+block_hessian_site(sw::StillingerWeber, args...) = 
+         ad_block_hessian_site(sw, args...)
+
+
+hessian_site(sw::StillingerWeber, args...) = 
+         ad_hessian_site(sw, args...)
+
+
+# ---------------------------------------------------
+#  the preconditioner implementation
 
 
 # ∇V  = V'(r) 𝐫̂ 
