@@ -10,7 +10,6 @@
 # v2 = ϵ f2(r_ij / σ); f2(r) = A (B r^{-p} - r^{-q}) exp( (r-a)^{-1} )
 # v3 = ϵ f3(ri/σ, rj/σ, rk/σ); f3 = h(rij, rij, Θjik) + ... + ...
 # h(rij, rik, Θjik) = λ exp[ γ (rij-a)^{-1} + γ (rik-a)^{-1} ] * (cosΘjik+1/3)^2
-#       >>>
 # V2 = 0.5 * ϵ * A (B r^{-p} - r^{-q}) * exp( (r-a)^{-1} )
 # V3 = √ϵ * λ exp[ γ (r-a)^{-1} ]
 #
@@ -22,14 +21,14 @@
          # gamma="1.20" eps="2.1675" />
 
 
-using ForwardDiff, ObjectPools, StaticArrays
-using ForwardDiff: Dual 
 
 using LinearAlgebra: dot, norm 
 
+
 export StillingerWeber
 
-
+# -------------------------------------------------------- 
+#   general utility functions 
 
 """
 `sw_bondangle(S1, S2) -> (dot(S1, S2) + 1.0/3.0)^2`
@@ -37,7 +36,7 @@ export StillingerWeber
 * not this assumes that `S1, S2` are normalised
 * see `sw_bondangle_d` for the derivative
 """
-sw_bondangle(S1, S2) = (dot(S1, S2) + 1.0/3.0)^2
+sw_bondangle(S1, S2) = (dot(S1, S2) + one(eltype(S1))/3)^2
 
 """
 `b := sw_bondangle(S1, S2)` then
@@ -47,10 +46,11 @@ sw_bondangle(S1, S2) = (dot(S1, S2) + 1.0/3.0)^2
 where `dbi` is the derivative of `b` w.r.t. `Ri` where `Si= Ri/ri`.
 """
 function sw_bondangle_d(S1, S2, r1, r2)
+   T = promote_type(eltype(S1), eltype(r1), typeof(r1), typeof(r2))
    d = dot(S1, S2)
-   b1 = (1.0/r1) * S2 - (d/r1) * S1
-   b2 = (1.0/r2) * S1 - (d/r2) * S2
-   return (d+1.0/3.0)^2, 2.0*(d+1.0/3.0)*b1, 2.0*(d+1.0/3.0)*b2
+   b1 = (one(T)/r1) * S2 - (d/r1) * S1
+   b2 = (one(T)/r2) * S1 - (d/r2) * S2
+   return (d+one(T)/3)^2, 2*(d+one(T)/3)*b1, 2*(d+one(T)/3)*b2
 end
 
 
@@ -82,16 +82,14 @@ struct StillingerWeber{P1, P2, T, TI} <: SitePotential
    V2::P1
    V3::P2
    rcut::T
-   pool::TSafe{ArrayPool{FlexArrayCache}}
+   atomic_id::TI    # normally some representation of Si
    meta::Dict{Symbol, T}
-   atomic_id::TI
 end
 
 energy_unit(calc::StillingerWeber) = u"eV"
 length_unit(calc::StillingerWeber) = u"Å"
-force_unit(calc::StillingerWeber) = u"eV/Å"
 
-cutoff_radius(calc::StillingerWeber) = calc.rcut * u"Å"
+cutoff_radius(calc::StillingerWeber) = calc.rcut * length_unit(calc)
 
 function StillingerWeber(;
    brittle = false,
@@ -115,136 +113,79 @@ function StillingerWeber(;
       V2, 
       V3, 
       rcut, 
-      TSafe(ArrayPool(FlexArrayCache)), 
+      atom_number, 
       meta,
-      atom_number
    ) 
 end
 
 
 function eval_site(calc::StillingerWeber, Rs, Zs, z0)
-   if z0 != calc.atomic_id
-      return ustrip(zero(calc))
-   end
-   Rs = [ rᵢ for (zᵢ, rᵢ) in zip(Zs,Rs) if zᵢ == calc.atomic_id ]
-   Zs = filter(id-> id == calc.atomic_id, Zs)
-
-   TF = eltype(eltype(Rs))
    Nr = length(Rs)
-   Eᵢ = zero(TF) 
-   S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
-   V3 = acquire!(calc.pool, :V3, (Nr,), TF)
+   @assert length(Zs) == Nr
+   @assert z0 == calc.atomic_id
+   @assert all(z == calc.atomic_id for z in Zs)
 
-   for j in eachindex(Rs)
-      r = norm(Rs[j])
-      S[j] = Rs[j] / r  # S[j] is used later
-      V3[j] = calc.V3(r)
-      Eᵢ += calc.V2(r) / 2
-   end
+   # initialize the site energy
+   TF = eltype(eltype(Rs))
+   Ei = zero(TF) 
 
-   for j₁ in 1:Nr, j₂ in j₁+1:Nr
-      Eᵢ += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
-   end
+   @no_escape begin 
+      S = @alloc(SVector{3, TF}, Nr)
+      V3 = @alloc(TF, Nr)
 
-   release!(S); release!(V3)
+      for j in eachindex(Rs)
+         r = norm(Rs[j])
+         S[j] = Rs[j] / r     # S[j] and V3[j] are used later
+         V3[j] = calc.V3(r)
+         Ei += calc.V2(r) / 2
+      end
 
-   return Eᵢ
+      for j₁ = 1:Nr, j₂ = j₁+1:Nr
+         Ei += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
+      end
+
+   end # @no_escape 
+
+   return Ei
 end
-
-
-# function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
-#    TF = eltype(eltype(Rs))
-#    f = zeros(SVector{3, TF}, length(Zs))
-#    Eᵢ = zero(TF)
-#    # if z0 != calc.atomic_id
-#    #    return Eᵢ, f
-#    # end
-#    # Rs = [ rᵢ for (zᵢ, rᵢ) in zip(Zs,Rs) if zᵢ == calc.atomic_id ]
-#    # ind = [ i for (i, zᵢ) in enumerate(Zs) if zᵢ == calc.atomic_id ]
-#    # Zs = filter(id-> id == calc.atomic_id, Zs)
-#    @assert z0 == calc.atomic_id
-#    @assert all(Zs .== calc.atomic_id)
-
-#    Nr = length(Rs)
-#    r = acquire!(calc.pool, :r, (Nr,), TF)
-#    S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
-#    V3 = acquire!(calc.pool, :V3, (Nr,), TF)
-#    gV3 = acquire!(calc.pool, :gV3, (Nr,), SVector{3, TF})
-#    dEs = acquire!(calc.pool, :dEs, (Nr,), SVector{3, TF})
-
-#    d_result = DiffResults.DiffResult(Eᵢ, Eᵢ)
-#    for j in eachindex(Rs)
-#       r[j] = rⱼ = norm(Rs[j])
-#       S[j] = 𝐫̂ⱼ = Rs[j] / rⱼ
-      
-#       d_result = ForwardDiff.derivative!(d_result, calc.V3, rⱼ)
-#       te::TF = DiffResults.value(d_result)
-#       V3[j] = te
-#       tmp::TF =  DiffResults.derivative(d_result)
-#       gV3[j] = tmp * 𝐫̂ⱼ
-
-#       d_result = ForwardDiff.derivative!(d_result, calc.V2, rⱼ)
-#       te = DiffResults.value(d_result)
-#       Eᵢ += te
-#       tmp =  DiffResults.derivative(d_result)
-#       dEs[j] = tmp * (𝐫̂ⱼ/2)
-#    end
-
-#    for j₁ in 1:Nr, j₂ in j₁+1:Nr
-#       Eᵢ += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
-#       a, b₁, b₂ = sw_bondangle_d(S[j₁], S[j₂], r[j₁], r[j₂])
-#       dEs[j₁] += (V3[j₁] * V3[j₂]) * b₁ + (V3[j₂] * a) * gV3[j₁]
-#       dEs[j₂] += (V3[j₁] * V3[j₂]) * b₂ + (V3[j₁] * a) * gV3[j₂]
-#    end
-   
-#    # Index conversion back
-#    # for (i,j)  in enumerate(ind)
-#    for j = 1:Nr
-#       f[j] = dEs[j]
-#    end
-
-#    release!(r); release!(S); release!(V3); release!(gV3); release!(dEs)
-
-#    return Eᵢ, f
-# end
 
 
 function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
    Nr = length(Rs)
    @assert length(Zs) == Nr
    @assert z0 == calc.atomic_id
-   @assert all(Zs .== calc.atomic_id)
+   @assert all(z == calc.atomic_id for z in Zs)
 
    TF = eltype(eltype(Rs))
    Ei = zero(TF)
    dEi = zeros(SVector{3, TF}, length(Zs))
 
-   r = acquire!(calc.pool, :r, (Nr,), TF)
-   S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
-   V3 = acquire!(calc.pool, :V3, (Nr,), TF)
-   gV3 = acquire!(calc.pool, :gV3, (Nr,), SVector{3, TF})
+   @no_escape begin 
+      r = @alloc(TF, Nr)
+      S = @alloc(SVector{3, TF}, Nr)
+      V3 = @alloc(TF, Nr)
+      gV3 = @alloc(SVector{3, TF}, Nr)
 
-   for j = 1:Nr 
-      r[j] = rⱼ = norm(Rs[j])
-      S[j] = 𝐫̂ⱼ = Rs[j] / rⱼ
-      
-      dv3 = calc.V3(Dual(rⱼ, one(rⱼ)))
-      V3[j] = ForwardDiff.value(dv3) 
-      gV3[j] = ForwardDiff.partials(dv3, 1) * 𝐫̂ⱼ/2
+      for j = 1:Nr 
+         r[j] = rⱼ = norm(Rs[j])
+         S[j] = 𝐫̂ⱼ = Rs[j] / rⱼ
+         
+         dv3 = calc.V3(Dual(rⱼ, one(rⱼ)))
+         V3[j] = ForwardDiff.value(dv3) 
+         gV3[j] = ForwardDiff.partials(dv3, 1) * 𝐫̂ⱼ
 
-      dv2 = calc.V2(Dual(rⱼ, one(rⱼ)))
-      Ei += ForwardDiff.value(dv2)
-      dEi[j] = ForwardDiff.partials(dv2, 1) * 𝐫̂ⱼ/2
-   end
+         dv2 = calc.V2(Dual(rⱼ, one(rⱼ)))
+         Ei += ForwardDiff.value(dv2)
+         dEi[j] = ForwardDiff.partials(dv2, 1) * 𝐫̂ⱼ/2
+      end
 
-   for j₁ in 1:Nr, j₂ in j₁+1:Nr
-      Ei += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
-      a, b₁, b₂ = sw_bondangle_d(S[j₁], S[j₂], r[j₁], r[j₂])
-      dEi[j₁] += (V3[j₁] * V3[j₂]) * b₁ + (V3[j₂] * a) * gV3[j₁]
-      dEi[j₂] += (V3[j₁] * V3[j₂]) * b₂ + (V3[j₁] * a) * gV3[j₂]
-   end
-   
-   release!(r); release!(S); release!(V3); release!(gV3);
+      for j₁ in 1:Nr, j₂ in j₁+1:Nr
+         Ei += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
+         a, b₁, b₂ = sw_bondangle_d(S[j₁], S[j₂], r[j₁], r[j₂])
+         dEi[j₁] += (V3[j₁] * V3[j₂]) * b₁ + (V3[j₂] * a) * gV3[j₁]
+         dEi[j₂] += (V3[j₁] * V3[j₂]) * b₂ + (V3[j₁] * a) * gV3[j₂]
+      end
+   end # @no_escape
 
    return Ei, dEi
 end
@@ -255,7 +196,6 @@ end
 
 block_hessian_site(sw::StillingerWeber, args...) = 
          ad_block_hessian_site(sw, args...)
-
 
 hessian_site(sw::StillingerWeber, args...) = 
          ad_hessian_site(sw, args...)
@@ -283,39 +223,42 @@ end
 function precon(calc::StillingerWeber, Rs::AbstractVector{SVector{3, TF}}, 
                 Zs, z0, innerstab=0.1) where {TF}
    Nr = length(Rs)
-   r = acquire!(calc.pool, :r, (Nr,), TF)
-   S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
-   V3 = acquire!(calc.pool, :V3, (Nr,), TF)
+   pEs = zeros(SMatrix{3, 3, TF}, Nr, Nr)
 
-   I3x3 = SMatrix{3, 3, TF}(I)
-   Z3x3 = zero(SMatrix{3, 3, TF})
-   _pEs = acquire!(calc.pool, :pEs, (Nr, Nr), typeof(I3x3))
-   pEs = unwrap(_pEs)
-   for i = 1:Nr, j = 1:Nr 
-      pEs[i, j] = Z3x3 
-   end 
+   @no_escape begin 
+      r = @alloc(TF, Nr)
+      S = @alloc(SVector{3, TF}, Nr)
+      V3 = @alloc(TF, Nr)
 
-   # two-body contributions
-   for (i, 𝐫) in enumerate(Rs)
-      r[i] = ri = norm(𝐫)
-      V3[i] = calc.V3(ri)
-      S[i] = 𝐫̂i = 𝐫 / ri
-      pEs[i,i] += ( (1 - innerstab) * _precon_pair(calc.V2, ri, 𝐫̂i) 
-                     + innerstab * I3x3) 
-   end
+      I3x3 = SMatrix{3, 3, TF}(I)
+      Z3x3 = zero(SMatrix{3, 3, TF})
+      for i = 1:Nr, j = 1:Nr 
+         pEs[i, j] = Z3x3 
+      end 
 
-   # three-body terms
-   for i1 = 1:(Nr-1), i2 = (i1+1):Nr
-      Θ = dot(S[i1], S[i2])
-      dΘ1 = (one(TF)/r[i1]) * S[i2] - (Θ/r[i1]) * S[i1]
-      dΘ2 = (one(TF)/r[i2]) * S[i1] - (Θ/r[i2]) * S[i2]
-      # ψ = (Θ + 1/3)^2, ψ' = 2 (Θ + 1/3), ψ'' = 2
-      a = (1 - innerstab) * abs(V3[i1] * V3[i2] * 2)
-      pEs[i1, i2] += a * dΘ1 * dΘ2'
-      pEs[i1, i1] += a * dΘ1 * dΘ1'
-      pEs[i2, i2] += a * dΘ2 * dΘ2'
-      pEs[i2, i1] += a * dΘ2 * dΘ1'
-   end
+      # two-body contributions
+      for (i, 𝐫) in enumerate(Rs)
+         r[i] = ri = norm(𝐫)
+         V3[i] = calc.V3(ri)
+         S[i] = 𝐫̂i = 𝐫 / ri
+         pEs[i,i] += ( (1 - innerstab) * _precon_pair(calc.V2, ri, 𝐫̂i) 
+                        + innerstab * I3x3) 
+      end
 
-   return _pEs
+      # three-body terms
+      for i1 = 1:(Nr-1), i2 = (i1+1):Nr
+         Θ = dot(S[i1], S[i2])
+         dΘ1 = (one(TF)/r[i1]) * S[i2] - (Θ/r[i1]) * S[i1]
+         dΘ2 = (one(TF)/r[i2]) * S[i1] - (Θ/r[i2]) * S[i2]
+         # ψ = (Θ + 1/3)^2, ψ' = 2 (Θ + 1/3), ψ'' = 2
+         a = (1 - innerstab) * abs(V3[i1] * V3[i2] * 2)
+         pEs[i1, i2] += a * dΘ1 * dΘ2'
+         pEs[i1, i1] += a * dΘ1 * dΘ1'
+         pEs[i2, i2] += a * dΘ2 * dΘ2'
+         pEs[i2, i1] += a * dΘ2 * dΘ1'
+      end
+   
+   end # @no_escape
+
+   return pEs
 end

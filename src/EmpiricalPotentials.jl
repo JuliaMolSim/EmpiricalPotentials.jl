@@ -1,11 +1,23 @@
 module EmpiricalPotentials
 
-# Write your package code here.
+using Unitful, ForwardDiff, StaticArrays, Bumper, StrideArrays
 
-include("sitepotentials.jl")
+using ForwardDiff: Dual
+
+import AtomsCalculatorsUtilities
+import AtomsCalculatorsUtilities.SitePotentials
+import AtomsCalculatorsUtilities.SitePotentials: eval_site, eval_grad_site, 
+                                 hessian_site, block_hessian_site, 
+                                 ad_block_hessian_site, ad_hessian_site, 
+                                 cutoff_radius, 
+                                 energy_unit, length_unit, 
+                                 SitePotential
+
+
 include("pairpotentials.jl")
-include("stillingerweber/stillingerweber.jl")
 
-include("site_hessians.jl")
+include("stillingerweber.jl")
+
+
 
 end
