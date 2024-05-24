@@ -72,6 +72,19 @@ catch e
    @test false 
 end
 
+## 
+# finite difference calculator tests 
+
+# @info("SW Finite difference calculator test")
+
+#    # I've commented out this test; we may need to return to it 
+#    # at some point. 
+# for sys in [ bulk(:Si, cubic=true) * 1, 
+#              bulk(:Si, cubic=false) * 2, ] 
+#    @test all( ACT.fdtest(sw, sys; rattle = 0.1u"Å", verbose=false) )
+# end
+
+
 
 ## 
 # take a brief look at precon 

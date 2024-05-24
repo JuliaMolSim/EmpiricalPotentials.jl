@@ -1,6 +1,6 @@
 using AtomsBase
 using AtomsCalculators
-using AtomsCalculators.AtomsCalculatorsTesting
+# using AtomsCalculators.AtomsCalculatorsTesting
 using EmpiricalPotentials
 using ExtXYZ
 using FiniteDiff
@@ -10,7 +10,7 @@ using Unitful
 fname = joinpath(pkgdir(EmpiricalPotentials), "data", "TiAl-1024.xyz")
 data = ExtXYZ.load(fname) |> FastSystem
 
-
+##
 
 @testset "SimplePairPotential" begin
     emin = -1.0u"meV"
