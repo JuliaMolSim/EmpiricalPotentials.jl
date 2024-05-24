@@ -54,7 +54,23 @@ end
 # but we can at least test that it evaluates alright 
 
 Rs, Zs, z0, _ = read_test(tests[1])
-Hi = EmpiricalPotentials.hessian_site(sw, Rs, Zs, z0)
+try 
+   Hi = EmpiricalPotentials.hessian_site(sw, Rs, Zs, z0)
+   @test true 
+catch e
+   @info("EmpiricalPotentials.hessian_site(sw,...) threw an error")
+   display(e)
+   @test false 
+end
+
+try 
+   blHi = EmpiricalPotentials.block_hessian_site(sw, Rs, Zs, z0)
+   @test true
+catch e
+   @info("EmpiricalPotentials.block_hessian_site(sw,...) threw an error")
+   display(e)
+   @test false 
+end
 
 
 ## 
