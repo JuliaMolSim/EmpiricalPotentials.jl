@@ -76,6 +76,10 @@ end
 ## 
 # finite difference calculator tests 
 
+sys = rattle!(bulk(:Si; cubic=true)*2, 0.1u"Å")
+test_energy_forces_virial(sys, sw)
+
+
 @info("SW Finite difference calculator test")
 
 for sys in [ bulk(:Si, cubic=true) * 1, 
