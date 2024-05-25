@@ -11,6 +11,7 @@ export PairPotential
 export ParametricPairPotential
 export SimplePairPotential
 export LennardJones
+using AtomsBase: AbstractSystem 
 
 
 
@@ -24,8 +25,20 @@ export LennardJones
 abstract type PairPotential <: SitePotential end
 
 
+_pos_type(sys::AbstractSystem) = typeof(position(sys, 1))
+
 cutoff_radius(pp::PairPotential) = pp.cutoff
 Base.zero(pp::PairPotential) = pp.zero_energy
+
+energy_unit(pp::PairPotential) = unit(pp.zero_energy)
+
+length_unit(pp::PairPotential) = unit(pp.cutoff)
+
+AtomsCalculators.zero_forces(sys, calc::PairPotential) = 
+        AtomsCalculatorsUtilities.SitePotentials.init_forces(sys, calc)
+
+AtomsCalculators.promote_force_type(sys, calc::PairPotential) = 
+        typeof( zero(_pos_type(sys)) * energy_unit(calc)/length_unit(calc) )
 
 ##
 
@@ -37,12 +50,6 @@ struct SimplePairPotential{ID, TC, TE} <: PairPotential where {TC<:Unitful.Lengt
     zero_energy::TE  
 end
 
-energy_unit(pp::SimplePairPotential) = unit(pp.zero_energy)
-
-length_unit(pp::SimplePairPotential) = unit(pp.cutoff)
-
-AtomsCalculators.zero_forces(sys, calc::SimplePairPotential) = 
-        AtomsCalculatorsUtilities.SitePotentials.init_forces(sys, calc)
 
 function eval_site(spp::SimplePairPotential, Rs, Zs, z0)
     if ! (z0 in spp.atom_ids)
@@ -92,13 +99,6 @@ struct ParametricPairPotential{ID, TP, TC, TE} <: PairPotential where {TP<:Abstr
     "zero used to define output type and unit"
     zero_energy::TE  
 end
-
-energy_unit(pp::ParametricPairPotential) = unit(pp.zero_energy)
-
-length_unit(pp::ParametricPairPotential) = unit(pp.cutoff)
-
-AtomsCalculators.zero_forces(sys, calc::ParametricPairPotential) = 
-        AtomsCalculatorsUtilities.SitePotentials.init_forces(sys, calc)
 
 
 function eval_site(ppp::ParametricPairPotential, Rs, Zs, z0)

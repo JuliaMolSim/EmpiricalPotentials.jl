@@ -9,11 +9,11 @@ using Unitful
 
 using AtomsCalculatorsUtilities.SitePotentials: energy_unit, length_unit, 
             force_unit, init_forces 
-using AtomsCalculators: zero_forces             
+using AtomsCalculators: zero_forces, forces           
 
 fname = joinpath(pkgdir(EmpiricalPotentials), "data", "TiAl-1024.xyz")
-data = ExtXYZ.load(fname) |> FastSystem
 
+data = ExtXYZ.load(fname) |> FastSystem
 ##
 
 @testset "SimplePairPotential" begin
@@ -30,7 +30,12 @@ data = ExtXYZ.load(fname) |> FastSystem
     @test lj.f(ustrip(rmin)/2^(1//6)) ≈ 0.0
 end
 
+emin = -1.0u"meV"
+rmin = 3.1u"Å"
+lj = LennardJones(emin, rmin,  13, 13, 6.0u"Å")
+sys = data
 unit(eltype(eltype(forces(sys, lj))))
+AtomsCalculators.promote_force_type(sys, lj)
 init_forces(sys, lj) == zero_forces(sys, lj)
 
 
