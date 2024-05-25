@@ -1,6 +1,6 @@
 using AtomsBase
 using AtomsCalculators
-# using AtomsCalculators.AtomsCalculatorsTesting
+using AtomsCalculators.AtomsCalculatorsTesting
 using EmpiricalPotentials
 using ExtXYZ
 using FiniteDiff
@@ -22,6 +22,8 @@ data = ExtXYZ.load(fname) |> FastSystem
     @test lj.f(ustrip(rmin)) ≈ ustrip(emin)
     @test lj.f(ustrip(rmin)/2^(1//6)) ≈ 0.0
 end
+
+##
 
 @testset "ParametricPairPotential" begin
     emin = -1.0u"meV"
