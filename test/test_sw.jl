@@ -1,11 +1,12 @@
-using AtomsBase
-# using AtomsCalculators.AtomsCalculatorsTesting
-using ExtXYZ
-using EmpiricalPotentials, StaticArrays, Test, JSON, ForwardDiff 
+
+using AtomsBase, ExtXYZ, StaticArrays, Test, JSON, ForwardDiff, Unitful
+using AtomsCalculators, EmpiricalPotentials, AtomsCalculatorsUtilities,
+      AtomsBuilder 
+
 using LinearAlgebra: dot, norm, I 
-using EmpiricalPotentials: cutoff_radius, StillingerWeber
-using AtomsCalculators
 using AtomsCalculators: potential_energy, forces
+using EmpiricalPotentials: cutoff_radius, StillingerWeber
+ACT = AtomsCalculatorsUtilities.Testing
 
 ##
 # old tests
@@ -18,7 +19,7 @@ D = JSON.parsefile(joinpath(@__DIR__(), "data", "test_sw.json"))
 tests = D["tests"]
 
 # the argument t should be a tests[i]
-function read_test(t::Dict) 
+function read_test(t::Dict)
    Rs = SVector{3, Float64}.(t["Rs"])
    Zs = Int.(t["Zs"])
    z0 = Int(t["z0"])
@@ -75,16 +76,12 @@ end
 ## 
 # finite difference calculator tests 
 
-# @info("SW Finite difference calculator test")
+@info("SW Finite difference calculator test")
 
-#    # I've commented out this test; we may need to return to it 
-#    # at some point. 
-# for sys in [ bulk(:Si, cubic=true) * 1, 
-#              bulk(:Si, cubic=false) * 2, ] 
-#    @test all( ACT.fdtest(sw, sys; rattle = 0.1u"Å", verbose=false) )
-# end
-
-
+for sys in [ bulk(:Si, cubic=true) * 1, 
+             bulk(:Si, cubic=false) * 2, ] 
+   @test all( ACT.fdtest(sys, sw; rattle = 0.1u"Å", verbose=false) )
+end
 
 ## 
 # take a brief look at precon 
@@ -119,11 +116,4 @@ for t in tests
    # but at least all evals must be >= 0.1 enforced by construction 
    @test all(λ .>= 0.1 - sqrt(eps(Float64)))
 end
-
-##
-# TODO: finite difference tests for the full calculator 
-
-# test_potential_energy(data, sw)
-# # test_forces(data, sw) # Needs update for AtomsCalculators
-# test_virial(data, sw)
 
