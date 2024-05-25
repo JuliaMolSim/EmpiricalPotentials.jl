@@ -25,7 +25,7 @@ using AtomsBase: AbstractSystem
 abstract type PairPotential <: SitePotential end
 
 
-_pos_type(sys::AbstractSystem) = typeof(position(sys, 1))
+_pos_type(sys::AbstractSystem) = typeof(ustrip.(position(sys, 1)))
 
 cutoff_radius(pp::PairPotential) = pp.cutoff
 Base.zero(pp::PairPotential) = pp.zero_energy
