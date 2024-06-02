@@ -1,15 +1,15 @@
 using AtomsBase
 using AtomsCalculators
 using AtomsCalculators.AtomsCalculatorsTesting
+import AtomsCalculatorsUtilities
 using EmpiricalPotentials
 using ExtXYZ
 using FiniteDiff
 using Test
 using Unitful
 
-using AtomsCalculatorsUtilities.SitePotentials: energy_unit, length_unit, 
-            force_unit, init_forces 
-using AtomsCalculators: zero_forces, forces           
+using AtomsCalculatorsUtilities.SitePotentials: energy_unit, length_unit, force_unit, cutoff_radius 
+using AtomsCalculators: zero_forces, forces, potential_energy           
 
 fname = joinpath(pkgdir(EmpiricalPotentials), "data", "TiAl-1024.xyz")
 
@@ -23,6 +23,7 @@ data = ExtXYZ.load(fname) |> FastSystem
     @show energy_unit(lj)
     @show length_unit(lj) 
     @show force_unit(lj)
+    @show AtomsCalculators.promote_force_type(data, lj)
     test_energy_forces_virial(data, lj)
 
     # Add more tests for correctness
@@ -30,6 +31,30 @@ data = ExtXYZ.load(fname) |> FastSystem
     @test lj.f(ustrip(rmin)/2^(1//6)) ≈ 0.0
 end
 
+##
+
+#=
+# this is a quick demo of type-instability of the 
+# pair potential implementation. 
+
+emin = -1.0u"meV"
+rmin = 3.1u"Å"
+lj = LennardJones(emin, rmin,  13, 13, 6.0u"Å")
+
+using NeighbourLists
+nlist = PairList(data, cutoff_radius(lj))
+Js, Rs, Zs, z0 = AtomsCalculatorsUtilities.SitePotentials.get_neighbours(data, lj, nlist, 2)
+
+
+# @btime AtomsCalculatorsUtilities.SitePotentials.eval_site($lj, $Rs, $Zs, $z0)
+
+@profview let Rs = Rs, Zs = Zs, z0 = z0, lj = lj 
+    for nrun = 1:1_000_000 
+        AtomsCalculatorsUtilities.SitePotentials.eval_site(lj, Rs, Zs, z0)
+    end
+end
+
+=#
 
 ##
 
