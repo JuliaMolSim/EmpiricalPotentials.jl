@@ -23,6 +23,7 @@
 
 
 using ForwardDiff, ObjectPools, StaticArrays
+using Bumper 
 using ForwardDiff: Dual 
 
 using LinearAlgebra: dot, norm 
@@ -37,7 +38,9 @@ export StillingerWeber
 * not this assumes that `S1, S2` are normalised
 * see `sw_bondangle_d` for the derivative
 """
-sw_bondangle(S1, S2) = (dot(S1, S2) + 1.0/3.0)^2
+sw_bondangle(S1, S2) = (dot(S1, S2) + one(eltype(S1))/3)^2
+# sw_bondangle(S1, S2) = (dot(S1, S2) + 1.0/3.0)^2
+
 
 """
 `b := sw_bondangle(S1, S2)` then
@@ -47,11 +50,19 @@ sw_bondangle(S1, S2) = (dot(S1, S2) + 1.0/3.0)^2
 where `dbi` is the derivative of `b` w.r.t. `Ri` where `Si= Ri/ri`.
 """
 function sw_bondangle_d(S1, S2, r1, r2)
+   T = promote_type(eltype(S1), eltype(r1), typeof(r1), typeof(r2))
    d = dot(S1, S2)
-   b1 = (1.0/r1) * S2 - (d/r1) * S1
-   b2 = (1.0/r2) * S1 - (d/r2) * S2
-   return (d+1.0/3.0)^2, 2.0*(d+1.0/3.0)*b1, 2.0*(d+1.0/3.0)*b2
+   b1 = (one(T)/r1) * S2 - (d/r1) * S1
+   b2 = (one(T)/r2) * S1 - (d/r2) * S2
+   return (d+one(T)/3)^2, 2*(d+one(T)/3)*b1, 2*(d+one(T)/3)*b2
 end
+
+# function sw_bondangle_d(S1, S2, r1, r2)
+#    d = dot(S1, S2)
+#    b1 = (1.0/r1) * S2 - (d/r1) * S1
+#    b2 = (1.0/r2) * S1 - (d/r2) * S2
+#    return (d+1.0/3.0)^2, 2.0*(d+1.0/3.0)*b1, 2.0*(d+1.0/3.0)*b2
+# end
 
 
 
@@ -121,35 +132,64 @@ function StillingerWeber(;
    ) 
 end
 
-
 function eval_site(calc::StillingerWeber, Rs, Zs, z0)
-   if z0 != calc.atomic_id
-      return ustrip(zero(calc))
-   end
-   Rs = [ rᵢ for (zᵢ, rᵢ) in zip(Zs,Rs) if zᵢ == calc.atomic_id ]
-   Zs = filter(id-> id == calc.atomic_id, Zs)
-
-   TF = eltype(eltype(Rs))
    Nr = length(Rs)
-   Eᵢ = zero(TF) 
-   S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
-   V3 = acquire!(calc.pool, :V3, (Nr,), TF)
+   @assert length(Zs) == Nr
+   @assert z0 == calc.atomic_id
+   @assert all(z == calc.atomic_id for z in Zs)
 
-   for j in eachindex(Rs)
-      r = norm(Rs[j])
-      S[j] = Rs[j] / r  # S[j] is used later
-      V3[j] = calc.V3(r)
-      Eᵢ += calc.V2(r) / 2
-   end
+   # initialize the site energy
+   TF = eltype(eltype(Rs))
+   Ei = zero(TF) 
 
-   for j₁ in 1:Nr, j₂ in j₁+1:Nr
-      Eᵢ += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
-   end
+   @no_escape begin 
+      S = @alloc(SVector{3, TF}, Nr)
+      V3 = @alloc(TF, Nr)
 
-   release!(S); release!(V3)
+      for j in eachindex(Rs)
+         r = norm(Rs[j])
+         S[j] = Rs[j] / r     # S[j] and V3[j] are used later
+         V3[j] = calc.V3(r)
+         Ei += calc.V2(r) / 2
+      end
 
-   return Eᵢ
+      for j₁ = 1:Nr, j₂ = j₁+1:Nr
+         Ei += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
+      end
+
+   end # @no_escape 
+
+   return Ei
 end
+
+# function eval_site(calc::StillingerWeber, Rs, Zs, z0)
+#    if z0 != calc.atomic_id
+#       return ustrip(zero(calc))
+#    end
+#    Rs = [ rᵢ for (zᵢ, rᵢ) in zip(Zs,Rs) if zᵢ == calc.atomic_id ]
+#    Zs = filter(id-> id == calc.atomic_id, Zs)
+
+#    TF = eltype(eltype(Rs))
+#    Nr = length(Rs)
+#    Eᵢ = zero(TF) 
+#    S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
+#    V3 = acquire!(calc.pool, :V3, (Nr,), TF)
+
+#    for j in eachindex(Rs)
+#       r = norm(Rs[j])
+#       S[j] = Rs[j] / r  # S[j] is used later
+#       V3[j] = calc.V3(r)
+#       Eᵢ += calc.V2(r) / 2
+#    end
+
+#    for j₁ in 1:Nr, j₂ in j₁+1:Nr
+#       Eᵢ += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
+#    end
+
+#    release!(S); release!(V3)
+
+#    return Eᵢ
+# end
 
 
 # function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
@@ -209,45 +249,87 @@ end
 # end
 
 
+# function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
+#    Nr = length(Rs)
+#    @assert length(Zs) == Nr
+#    @assert z0 == calc.atomic_id
+#    @assert all(Zs .== calc.atomic_id)
+
+#    TF = eltype(eltype(Rs))
+#    Ei = zero(TF)
+#    dEi = zeros(SVector{3, TF}, length(Zs))
+
+#    r = acquire!(calc.pool, :r, (Nr,), TF)
+#    S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
+#    V3 = acquire!(calc.pool, :V3, (Nr,), TF)
+#    gV3 = acquire!(calc.pool, :gV3, (Nr,), SVector{3, TF})
+
+#    for j = 1:Nr 
+#       r[j] = rⱼ = norm(Rs[j])
+#       S[j] = 𝐫̂ⱼ = Rs[j] / rⱼ
+      
+#       dv3 = calc.V3(Dual(rⱼ, one(rⱼ)))
+#       V3[j] = ForwardDiff.value(dv3) 
+#       gV3[j] = ForwardDiff.partials(dv3, 1) * 𝐫̂ⱼ/2
+
+#       dv2 = calc.V2(Dual(rⱼ, one(rⱼ)))
+#       Ei += ForwardDiff.value(dv2)
+#       dEi[j] = ForwardDiff.partials(dv2, 1) * 𝐫̂ⱼ/2
+#    end
+
+#    for j₁ in 1:Nr, j₂ in j₁+1:Nr
+#       Ei += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
+#       a, b₁, b₂ = sw_bondangle_d(S[j₁], S[j₂], r[j₁], r[j₂])
+#       dEi[j₁] += (V3[j₁] * V3[j₂]) * b₁ + (V3[j₂] * a) * gV3[j₁]
+#       dEi[j₂] += (V3[j₁] * V3[j₂]) * b₂ + (V3[j₁] * a) * gV3[j₂]
+#    end
+   
+#    release!(r); release!(S); release!(V3); release!(gV3);
+
+#    return Ei, dEi
+# end
+
 function eval_grad_site(calc::StillingerWeber, Rs, Zs, z0)
    Nr = length(Rs)
    @assert length(Zs) == Nr
    @assert z0 == calc.atomic_id
-   @assert all(Zs .== calc.atomic_id)
+   @assert all(z == calc.atomic_id for z in Zs)
 
    TF = eltype(eltype(Rs))
    Ei = zero(TF)
    dEi = zeros(SVector{3, TF}, length(Zs))
 
-   r = acquire!(calc.pool, :r, (Nr,), TF)
-   S = acquire!(calc.pool, :S, (Nr,), SVector{3, TF})
-   V3 = acquire!(calc.pool, :V3, (Nr,), TF)
-   gV3 = acquire!(calc.pool, :gV3, (Nr,), SVector{3, TF})
+   @no_escape begin 
+      r = @alloc(TF, Nr)
+      S = @alloc(SVector{3, TF}, Nr)
+      V3 = @alloc(TF, Nr)
+      gV3 = @alloc(SVector{3, TF}, Nr)
 
-   for j = 1:Nr 
-      r[j] = rⱼ = norm(Rs[j])
-      S[j] = 𝐫̂ⱼ = Rs[j] / rⱼ
-      
-      dv3 = calc.V3(Dual(rⱼ, one(rⱼ)))
-      V3[j] = ForwardDiff.value(dv3) 
-      gV3[j] = ForwardDiff.partials(dv3, 1) * 𝐫̂ⱼ/2
+      for j = 1:Nr 
+         r[j] = rⱼ = norm(Rs[j])
+         S[j] = 𝐫̂ⱼ = Rs[j] / rⱼ
+         
+         dv3 = calc.V3(Dual(rⱼ, one(rⱼ)))
+         V3[j] = ForwardDiff.value(dv3) 
+         gV3[j] = ForwardDiff.partials(dv3, 1) * 𝐫̂ⱼ
 
-      dv2 = calc.V2(Dual(rⱼ, one(rⱼ)))
-      Ei += ForwardDiff.value(dv2)
-      dEi[j] = ForwardDiff.partials(dv2, 1) * 𝐫̂ⱼ/2
-   end
+         dv2 = calc.V2(Dual(rⱼ, one(rⱼ)))
+         Ei += ForwardDiff.value(dv2)
+         dEi[j] = ForwardDiff.partials(dv2, 1) * 𝐫̂ⱼ/2
+      end
 
-   for j₁ in 1:Nr, j₂ in j₁+1:Nr
-      Ei += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
-      a, b₁, b₂ = sw_bondangle_d(S[j₁], S[j₂], r[j₁], r[j₂])
-      dEi[j₁] += (V3[j₁] * V3[j₂]) * b₁ + (V3[j₂] * a) * gV3[j₁]
-      dEi[j₂] += (V3[j₁] * V3[j₂]) * b₂ + (V3[j₁] * a) * gV3[j₂]
-   end
-   
-   release!(r); release!(S); release!(V3); release!(gV3);
+      for j₁ in 1:Nr, j₂ in j₁+1:Nr
+         Ei += V3[j₁] * V3[j₂] * sw_bondangle(S[j₁], S[j₂])
+         a, b₁, b₂ = sw_bondangle_d(S[j₁], S[j₂], r[j₁], r[j₂])
+         dEi[j₁] += (V3[j₁] * V3[j₂]) * b₁ + (V3[j₂] * a) * gV3[j₁]
+         dEi[j₂] += (V3[j₁] * V3[j₂]) * b₂ + (V3[j₁] * a) * gV3[j₂]
+      end
+   end # @no_escape
 
    return Ei, dEi
 end
+
+
 
 
 # ---------------------------------------------------
