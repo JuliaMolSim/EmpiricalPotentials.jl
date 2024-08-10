@@ -21,9 +21,7 @@
          # gamma="1.20" eps="2.1675" />
 
 
-
 using LinearAlgebra: dot, norm 
-
 
 export StillingerWeber
 
@@ -87,6 +85,7 @@ struct StillingerWeber{P1, P2, T, TI} <: SitePotential
 end
 
 energy_unit(calc::StillingerWeber) = u"eV"
+
 length_unit(calc::StillingerWeber) = u"Å"
 
 cutoff_radius(calc::StillingerWeber) = calc.rcut * length_unit(calc)
