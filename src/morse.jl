@@ -20,7 +20,6 @@ cutoff. It can be constructed as follows. The parameters are
 params = Dict( (z1, z1) => ( -1.0u"eV",  2.7u"Å", 4.1 ),     
                (z1, z2) => ( -0.5u"eV",  3.2u"Å", 3.5 ),
                (z2, z2) => ( -0.25u"eV", 3.0u"Å", 4.3 ) )
-               (z2, z2) => -0.25u"eV" )
 rcut = 6.0u"Å"              
 V = Morse(params, rcut) 
 ```
