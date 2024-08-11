@@ -15,16 +15,13 @@ ACT = AtomsCalculatorsUtilities.Testing
 ##
 
 # generate the LJ potential 
-rcut = 5.0u"Å"
+rcut = 6.0u"Å"
 zAl = AtomsBuilder.Chemistry.atomic_number(:Al)
 zCu = AtomsBuilder.Chemistry.atomic_number(:Cu)
-emins = Dict( (zAl, zAl) => -1.0u"eV", 
-              (zAl, zCu) => -1.234u"eV", 
-              (zCu, zCu) => -0.345u"eV" )
-rmins = Dict( (zAl, zAl) => 2.7u"Å", 
-              (zAl, zCu) => 3.2u"Å", 
-              (zCu, zCu) => 3.0u"Å" )              
-lj = LennardJones(emins, rmins, rcut)
+params = Dict( (zAl, zAl) => (-1.0u"eV", 2.7u"Å", 5.2), 
+               (zAl, zCu) => (-1.234u"eV", 3.2u"Å", 4.5), 
+               (zCu, zCu) => (-0.345u"eV", 3.0u"Å", 5.0) )
+V = Morse(params, rcut)
 
 ##
 # TODO - should add a test the checks the correctness of the 
@@ -37,7 +34,7 @@ lj = LennardJones(emins, rmins, rcut)
 # sys = rattle!(bulk(:Si; cubic=true)*2, 0.1u"Å")
 # test_energy_forces_virial(sys, sw)
 
-@info("LJ Finite difference calculator test")
+@info("Morse Finite difference calculator test")
 
 function rand_struct(nrep) 
    sys = rattle!(bulk(:Al, cubic=true) * nrep, 0.1u"Å")
@@ -45,10 +42,9 @@ function rand_struct(nrep)
 end 
 
 sys = rand_struct(2)
-@test potential_energy(sys, lj) isa Unitful.Energy
-@test forces(sys, lj) isa Vector{<: SVector{3, <: Unitful.Force}}
+@test potential_energy(sys, V) isa Unitful.Energy
+@test forces(sys, V) isa Vector{<: SVector{3, <: Unitful.Force}}
 
 for sys in [ rand_struct(1), rand_struct(2), rand_struct(2) ]
-   @test all( ACT.fdtest(sys, lj; rattle = 0.01u"Å", verbose=false) )
+   @test all( ACT.fdtest(sys, V; rattle = 0.01u"Å", verbose=false) )
 end
-

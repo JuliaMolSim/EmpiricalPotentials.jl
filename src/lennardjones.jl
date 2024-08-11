@@ -1,28 +1,6 @@
 
-import AtomsCalculatorsUtilities.PairPotentials: PairPotential, 
-            eval_pair, cutoff_radius 
-
-import AtomsCalculators: energy_unit, length_unit 
-
-using StaticArrays
           
 export LennardJones
-
-#, Morse, ZBL 
-
-
-# a simple utility to find a species index in a short list 
-
-function _z2i(zlist, z)
-    for iz = 1:length(zlist)
-        if zlist[iz] == z
-            return iz
-        end
-    end
-    return 0 
-end 
-
-
 
 
 # ----------- Lennard-Jones potential
@@ -50,7 +28,7 @@ lj = LennardJones(emins, rmins, rcut)
 It is assumed that the potential is symmetric, i.e. 
 `emins[(z1, z2)] == emins[(z2, z1)]` and so forth. 
 """
-struct LennardJones{NZ, TZ, T, UL, UE} <: PairPotential 
+mutable struct LennardJones{NZ, TZ, T, UL, UE} <: PairPotential 
     zlist::NTuple{NZ, TZ}
     emins::SMatrix{NZ, NZ, T} 
     rmins::SMatrix{NZ, NZ, T}

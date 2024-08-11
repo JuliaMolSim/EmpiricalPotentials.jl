@@ -1,6 +1,6 @@
 module EmpiricalPotentials
 
-using Unitful, ForwardDiff, StaticArrays, Bumper, StrideArrays
+using Unitful, ForwardDiff, StaticArrays, Bumper 
 
 using ForwardDiff: Dual
 
@@ -13,8 +13,13 @@ import AtomsCalculatorsUtilities.SitePotentials: eval_site, eval_grad_site,
                                  cutoff_radius, SitePotential, 
                                  ad_block_hessian_site, ad_hessian_site
 
+import AtomsCalculatorsUtilities.PairPotentials: PairPotential, 
+                                                 eval_pair, cutoff_radius 
+
+include("utils.jl")                                                 
 
 include("lennardjones.jl")
+include("morse.jl")
 
 include("stillingerweber.jl")
 
