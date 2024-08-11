@@ -20,6 +20,7 @@ include("utils.jl")
 
 include("lennardjones.jl")
 include("morse.jl")
+include("zbl.jl")
 
 include("stillingerweber.jl")
 
