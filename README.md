@@ -9,6 +9,9 @@ empirical interatomic potentials. At the moment, the following
 potentials are provided: 
 - LennardJones (multi-species) 
 - Morse (multi-species)
+- ZBL
 - StillingerWeber (Si)
 
-EAM is planned, but there is no ETA. Issues to request adding other potentials or PRs implementing them are welcome. 
+EAM is planned, but there is no ETA. At the moment potentials have fixed parameters. Extension for parameterized potentials (low-level AtomsCalculators interface) are planned, but also no ETA. 
+
+Issues to request adding other potentials or functionality or PRs implementing them are welcome.
