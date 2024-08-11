@@ -14,7 +14,7 @@ import AtomsCalculatorsUtilities.SitePotentials: eval_site, eval_grad_site,
                                  ad_block_hessian_site, ad_hessian_site
 
 
-include("pairpotentials.jl")
+include("lennardjones.jl")
 
 include("stillingerweber.jl")
 
