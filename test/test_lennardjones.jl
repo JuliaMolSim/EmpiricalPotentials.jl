@@ -3,7 +3,7 @@
 
 ##
 
-using AtomsBase, StaticArrays, Test, JSON, ForwardDiff, Unitful
+using AtomsBase, StaticArrays, Test, ForwardDiff, Unitful
 using AtomsCalculators, EmpiricalPotentials, AtomsCalculatorsUtilities,
       AtomsBuilder 
 

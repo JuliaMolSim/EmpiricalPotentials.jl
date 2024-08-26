@@ -1,4 +1,4 @@
-# For this script to run, JuLIP must be installed in the default environment
+# For this script to run, JuLIP and JSON must be installed in the default environment
 # so it can be stacked. 
 # Run this via 
 #    julia --project=.. generate_sw_tests.jl

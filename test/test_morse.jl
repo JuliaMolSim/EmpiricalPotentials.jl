@@ -3,7 +3,7 @@
 
 ##
 
-using AtomsBase, StaticArrays, Test, JSON, ForwardDiff, Unitful
+using AtomsBase, StaticArrays, Test, ForwardDiff, Unitful
 using AtomsCalculators, EmpiricalPotentials, AtomsCalculatorsUtilities,
       AtomsBuilder 
 
@@ -36,15 +36,15 @@ V = Morse(params, rcut)
 
 @info("Morse Finite difference calculator test")
 
-function rand_struct(nrep) 
+function rand_struct_morse(nrep) 
    sys = rattle!(bulk(:Al, cubic=true) * nrep, 0.1u"Å")
    return randz!(sys, [ :Al => 0.5, :Cu => 0.5 ])
 end 
 
-sys = rand_struct(2)
+sys = rand_struct_morse(2)
 @test potential_energy(sys, V) isa Unitful.Energy
 @test forces(sys, V) isa Vector{<: SVector{3, <: Unitful.Force}}
 
-for sys in [ rand_struct(1), rand_struct(2), rand_struct(2) ]
+for sys in [ rand_struct_morse(1), rand_struct_morse(2), rand_struct_morse(2) ]
    @test all( ACT.fdtest(sys, V; rattle = 0.01u"Å", verbose=false) )
 end

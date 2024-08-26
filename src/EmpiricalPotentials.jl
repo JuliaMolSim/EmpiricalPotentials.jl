@@ -11,10 +11,11 @@ import AtomsCalculatorsUtilities.SitePotentials
 import AtomsCalculatorsUtilities.SitePotentials: eval_site, eval_grad_site, 
                                  hessian_site, block_hessian_site,  
                                  cutoff_radius, SitePotential, 
-                                 ad_block_hessian_site, ad_hessian_site
+                                 ad_block_hessian_site, ad_hessian_site, 
+                                 cutoff_radius
 
 import AtomsCalculatorsUtilities.PairPotentials: PairPotential, 
-                                                 eval_pair, cutoff_radius 
+                                                 eval_pair 
 
 include("utils.jl")                                                 
 
