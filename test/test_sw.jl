@@ -3,10 +3,11 @@
 
 ##
 
-using AtomsBase, ExtXYZ, StaticArrays, Test, JSON, ForwardDiff, Unitful
+using AtomsBase, StaticArrays, Test, JSON, ForwardDiff, Unitful
 using AtomsCalculators, EmpiricalPotentials, AtomsCalculatorsUtilities,
       AtomsBuilder 
 
+using AtomsBase: AbstractSystem
 using LinearAlgebra: dot, norm, I 
 using AtomsCalculators: potential_energy, forces
 using EmpiricalPotentials: cutoff_radius, StillingerWeber
