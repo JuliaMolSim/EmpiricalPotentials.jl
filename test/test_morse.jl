@@ -9,6 +9,7 @@ using AtomsCalculators, EmpiricalPotentials, AtomsCalculatorsUtilities,
 
 using LinearAlgebra: dot, norm, I 
 using AtomsCalculators: potential_energy, forces
+using AtomsCalculators.Testing
 using EmpiricalPotentials: cutoff_radius, LennardJones 
 ACT = AtomsCalculatorsUtilities.Testing
 
@@ -38,12 +39,13 @@ V = Morse(params, rcut)
 
 function rand_struct_morse(nrep) 
    sys = rattle!(bulk(:Al, cubic=true) * nrep, 0.1u"Å")
-   return randz!(sys, [ :Al => 0.5, :Cu => 0.5 ])
+   # Add an element that is not in the potential to see that it is ignored
+   return randz!(sys, [ :Al => 0.5, :Cu => 0.4, :Sn => 0.1 ])
 end 
 
 sys = rand_struct_morse(2)
-@test potential_energy(sys, V) isa Unitful.Energy
-@test forces(sys, V) isa Vector{<: SVector{3, <: Unitful.Force}}
+
+test_energy_forces_virial(sys, V)
 
 for sys in [ rand_struct_morse(1), rand_struct_morse(2), rand_struct_morse(2) ]
    @test all( ACT.fdtest(sys, V; rattle = 0.01u"Å", verbose=false) )

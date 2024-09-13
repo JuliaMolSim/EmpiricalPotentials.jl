@@ -16,7 +16,7 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 [compat]
 AtomsBase = "0.3, 0.4"
 AtomsCalculators = "0.2"
-AtomsCalculatorsUtilities = "0.1.0"
+AtomsCalculatorsUtilities = "0.1.3"
 Bumper = "0.6, 0.7"
 ForwardDiff = "0.10"
 LinearAlgebra = "1"
