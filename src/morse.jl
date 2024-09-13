@@ -45,8 +45,8 @@ cutoff_radius(V::Morse) = V.rcut * length_unit(V)
 function eval_pair(V::Morse, r, z1, z2)
     iz1 = _z2i(V.zlist, z1)
     iz2 = _z2i(V.zlist, z2)
-    if iz1 == 0 || iz1 == 0 || r > V.rcut
-        return zero(_fltype(V))
+    if iz1 == 0 || iz2 == 0 || r > V.rcut
+        return zero(r)
     end
 
     _m(s) = exp(-2 * s) - 2 * exp(-s)
