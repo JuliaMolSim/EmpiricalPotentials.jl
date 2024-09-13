@@ -48,7 +48,7 @@ function eval_pair(V::LennardJones, r, z1, z2)
     iz1 = _z2i(V.zlist, z1)
     iz2 = _z2i(V.zlist, z2)
     if iz1 == 0 || iz2 == 0 || r > V.rcut
-        return zero(r)
+        return zero( promote_type(_fltype(V), typeof(r)) )
     end
 
     _lj(s) = s^12 - 2 * s^6
