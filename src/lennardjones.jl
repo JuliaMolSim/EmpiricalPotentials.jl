@@ -60,7 +60,7 @@ function eval_pair(V::LennardJones, r, z1, z2)
     s = rmin / r 
     scut = rmin / V.rcut 
 
-    return emin * _lj_tilt(s, scut)
+    return -emin * _lj_tilt(s, scut)
 end
 
 
