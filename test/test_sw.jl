@@ -1,5 +1,6 @@
 
 # using Pkg; Pkg.activate(@__DIR__() * "/..")
+# using TestEnv; TestEnv.activate()
 
 ##
 
@@ -24,7 +25,7 @@ D = JSON.parsefile(joinpath(@__DIR__(), "data", "test_sw.json"))
 tests = D["tests"]
 
 # the argument t should be a tests[i]
-function read_test(t::Dict)
+function read_test(t::AbstractDict)
    Rs = SVector{3, Float64}.(t["Rs"])
    Zs = Int.(t["Zs"])
    z0 = Int(t["z0"])
