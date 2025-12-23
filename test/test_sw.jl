@@ -9,7 +9,7 @@ using AtomsCalculators, EmpiricalPotentials, AtomsCalculatorsUtilities,
       AtomsBuilder 
 
 using AtomsBase: AbstractSystem
-using LinearAlgebra: dot, norm, I 
+using LinearAlgebra: dot, norm, I, Symmetric
 using AtomsCalculators: potential_energy, forces
 using EmpiricalPotentials: cutoff_radius, StillingerWeber
 ACT = AtomsCalculatorsUtilities.Testing
@@ -119,7 +119,7 @@ for t in tests
    P = convert_blockmat(Pblock)
    @test P' ≈ P 
    # compute spectrum and check it is what we expect 
-   λ = eigvals(P)
+   λ = real.(eigvals(Symmetric(P)))
    # rotation-invariance should give three zero eigenvalues 
    # but with innerstab = 0.1 those become 0.1. The tests show that 
    # this is not true which must mean that the precon is not 
@@ -128,4 +128,3 @@ for t in tests
    # but at least all evals must be >= 0.1 enforced by construction 
    @test all(λ .>= 0.1 - sqrt(eps(Float64)))
 end
-
